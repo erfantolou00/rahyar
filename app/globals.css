@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3efe4;
+  --foreground: #1d1a16;
+  --card: #fffdf8;
+  --muted: #6f675c;
+  --line: #e3d9c6;
+  --accent: #9a4b1f;
+  --accent-soft: #f3e2d2;
+  --ok: #1e6b45;
+  --warn: #8a5a12;
+  --danger: #8d2f2f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-vazirmatn), sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(900px 420px at 100% -10%, #f6e4cf 0%, transparent 60%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-vazirmatn), sans-serif;
+}
+
+.numeric {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-input {
+  width: 100%;
+  border-radius: 0.85rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0.65rem 0.8rem;
+  outline: none;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+table th {
+  text-align: right;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0.65rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+table td {
+  padding: 0.7rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
