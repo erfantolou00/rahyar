@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/ui";
+import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { replaceAllocation } from "@/app/(dashboard)/allocations/actions";
 import { formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
 import { assetTypeLabels } from "@/lib/finance/labels";

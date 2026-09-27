@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildPortfolio } from "@/lib/finance/portfolio";
+import { buildBasket, buildPortfolio } from "@/lib/finance/portfolio";
+import { toNumber } from "@/lib/finance/format";
 import type {
   Allocation,
   Asset,
@@ -56,6 +57,29 @@ export async function loadPortfolio(
   return {
     ok: true,
     data: buildPortfolio(assets.data, prices.data, allocations.data),
+  };
+}
+
+export async function loadBasket(
+  supabase: FinanceClient,
+): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
+  const assets = await readRows<Asset>(
+    supabase.from("assets").select("*").order("symbol", { ascending: true }),
+  );
+  if (!assets.ok) return assets;
+
+  return {
+    ok: true,
+    data: buildBasket(
+      assets.data.map((asset) => ({
+        id: asset.id,
+        name: asset.symbol,
+        type: asset.type,
+        quantity: toNumber(asset.quantity),
+        avgBuyPrice: asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price),
+        currentPrice: asset.manual_value == null ? null : toNumber(asset.manual_value),
+      })),
+    ),
   };
 }
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Notice, PageHeader, Panel, errorMessage } from "@/components/ui";
+import { Notice, PageHeader, Panel, errorMessage } from "@/components/chrome";
 import { MfaEnrollForm } from "@/components/mfa-enroll-form";
 import { unenrollMfa } from "@/app/(dashboard)/security/actions";
 import { requireSession } from "@/lib/supabase/auth";

@@ -22,7 +22,11 @@
 
 `supabase/migrations/20260927134917_init_finance_schema.sql`
 
-این فایل جدول‌ها، RLS، تریگر تک‌کاربره و تابع `replace_allocation` را می‌سازد. یک‌بار اجرا شود.
+و برای ارزش دستی سبد:
+
+`supabase/migrations/20260927163410_add_asset_manual_value.sql`
+
+این دو فایل را یک‌بار اجرا کنید. فایل اول جدول‌ها، RLS، تریگر تک‌کاربره و تابع `replace_allocation` را می‌سازد. فایل دوم ستون ارزش دستی را به دارایی‌ها اضافه می‌کند. `db push` هر دو را به ترتیب اعمال می‌کند.
 
 ### روش ترجیحی: CLI، با تاریخچهٔ migration
 

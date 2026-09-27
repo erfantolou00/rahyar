@@ -29,12 +29,25 @@ export function isChatRole(value: string): value is ChatRole {
   return (chatRoles as readonly string[]).includes(value);
 }
 
+const persianDigits = "۰۱۲۳۴۵۶۷۸۹";
+const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+
+export function normalizeNumericInput(value: string): string {
+  let normalized = value.trim();
+  for (let index = 0; index < 10; index += 1) {
+    normalized = normalized
+      .replaceAll(persianDigits[index] ?? "", String(index))
+      .replaceAll(arabicDigits[index] ?? "", String(index));
+  }
+  return normalized.replace(/[,\u066C\u066B\s\u00A0]/g, "").replace("٫", ".");
+}
+
 export function parseRequiredNumber(
   value: string,
   options: { min?: number; max?: number; exclusiveMin?: boolean } = {},
 ): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
+  if (!value.trim()) return null;
+  const parsed = Number(normalizeNumericInput(value));
   if (!Number.isFinite(parsed)) return null;
   if (options.min != null && parsed < options.min) return null;
   if (options.exclusiveMin && options.min != null && parsed <= options.min) return null;

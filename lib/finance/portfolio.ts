@@ -53,7 +53,7 @@ export function buildPortfolio(
 
   const totalValue = holdings.reduce((sum, holding) => sum + holding.value, 0);
   for (const holding of holdings) {
-    holding.weight = totalValue > 0 ? (holding.value / totalValue) * 100 : null;
+    holding.weight = weightPercent(holding.value, totalValue);
   }
 
   const valueByType = new Map<AssetType, number>();
@@ -83,4 +83,101 @@ export function buildPortfolio(
     .sort((left, right) => right.value - left.value);
 
   return { totalValue, holdings, byType };
+}
+
+export type PositionNumbers = {
+  quantity: number;
+  avgBuyPrice: number | null;
+  currentPrice: number | null;
+};
+
+export type ProfitLoss = {
+  cost: number | null;
+  absolute: number | null;
+  percent: number | null;
+};
+
+export type BasketPosition = PositionNumbers & {
+  id: string;
+  name: string;
+  type: AssetType;
+};
+
+export type BasketRow = BasketPosition & ProfitLoss & {
+  currentValue: number | null;
+  weight: number | null;
+};
+
+export type BasketSummary = {
+  rows: BasketRow[];
+  totalValue: number;
+  totalCost: number | null;
+  totalAbsolute: number | null;
+  totalPercent: number | null;
+};
+
+function finite(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return value;
+}
+
+export function costBasis(quantity: number, avgBuyPrice: number | null): number | null {
+  const qty = finite(quantity);
+  const price = finite(avgBuyPrice);
+  if (qty == null || price == null || qty < 0 || price < 0) return null;
+  return qty * price;
+}
+
+export function positionValue(quantity: number, unitPrice: number | null): number | null {
+  const qty = finite(quantity);
+  const price = finite(unitPrice);
+  if (qty == null || price == null || qty < 0 || price < 0) return null;
+  return qty * price;
+}
+
+export function profitAndLoss(position: PositionNumbers): ProfitLoss {
+  const cost = costBasis(position.quantity, position.avgBuyPrice);
+  const current = positionValue(position.quantity, position.currentPrice);
+  if (current == null || cost == null) {
+    return { cost, absolute: null, percent: null };
+  }
+  const absolute = current - cost;
+  const percent = cost === 0 ? null : (absolute / cost) * 100;
+  return { cost, absolute, percent };
+}
+
+export function weightPercent(value: number | null, totalValue: number): number | null {
+  const amount = finite(value);
+  const total = finite(totalValue);
+  if (amount == null || amount < 0 || total == null || total <= 0) return null;
+  return (amount / total) * 100;
+}
+
+export function buildBasket(positions: BasketPosition[]): BasketSummary {
+  const valued = positions.map((position) => {
+    const currentValue = positionValue(position.quantity, position.currentPrice);
+    return { ...position, currentValue, ...profitAndLoss(position) };
+  });
+
+  const totalValue = valued.reduce(
+    (sum, row) => sum + (row.currentValue ?? 0),
+    0,
+  );
+
+  const rows: BasketRow[] = valued.map((row) => ({
+    ...row,
+    weight: row.currentValue == null ? null : weightPercent(row.currentValue, totalValue),
+  }));
+
+  const priced = rows.filter((row) => row.cost != null && row.absolute != null);
+  const totalCost =
+    priced.length === 0 ? null : priced.reduce((sum, row) => sum + (row.cost ?? 0), 0);
+  const totalAbsolute =
+    priced.length === 0 ? null : priced.reduce((sum, row) => sum + (row.absolute ?? 0), 0);
+  const totalPercent =
+    totalCost == null || totalAbsolute == null || totalCost === 0
+      ? null
+      : (totalAbsolute / totalCost) * 100;
+
+  return { rows, totalValue, totalCost, totalAbsolute, totalPercent };
 }

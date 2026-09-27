@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/ui";
+import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { saveChatMessage } from "@/app/(dashboard)/chat/actions";
 import { formatTimestamp } from "@/lib/finance/format";
 import { chatRoleLabels } from "@/lib/finance/labels";
@@ -38,7 +38,7 @@ export default async function ChatPage({
               <ol className="grid gap-3">
                 {logs.data.map((log) => (
                   <li key={log.id} className="rounded-xl bg-background px-3 py-2">
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted-foreground">
                       {chatRoleLabels[log.role]} · {formatTimestamp(log.timestamp)}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-7">{log.message}</p>

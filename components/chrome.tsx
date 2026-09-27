@@ -10,7 +10,7 @@ export function PageHeader({
   return (
     <header className="mb-6">
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">{description}</p> : null}
+      {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{description}</p> : null}
     </header>
   );
 }
@@ -40,7 +40,7 @@ export function Notice({ message }: { message?: string | null }) {
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="text-sm leading-7 text-muted">{children}</p>;
+  return <p className="text-sm leading-7 text-muted-foreground">{children}</p>;
 }
 
 export function SchemaNotice({ missing }: { missing: boolean }) {
@@ -74,7 +74,7 @@ export function SubmitButton({ children }: { children: ReactNode }) {
   return (
     <button
       type="submit"
-      className="rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+      className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium transition hover:opacity-90"
     >
       {children}
     </button>

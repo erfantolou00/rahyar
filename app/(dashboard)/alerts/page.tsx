@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/ui";
+import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { createAlert, setAlertActive } from "@/app/(dashboard)/alerts/actions";
 import { formatNumber, toNumber } from "@/lib/finance/format";
 import { readRows } from "@/lib/finance/queries";
@@ -34,7 +34,7 @@ export default async function AlertsPage({
                   <li key={alert.id} className="flex items-start justify-between gap-3 border-b border-line pb-3 text-sm">
                     <div>
                       <p className="font-medium">{alert.rule}</p>
-                      <p className="mt-1 text-muted">
+                      <p className="mt-1 text-muted-foreground">
                         آستانه <span className="numeric">{formatNumber(toNumber(alert.threshold))}</span>
                         {" · "}
                         {alert.channel}

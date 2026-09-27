@@ -32,6 +32,7 @@ export type Asset = {
   target_min_weight: Numeric | null;
   target_max_weight: Numeric | null;
   risk_level: number | null;
+  manual_value: Numeric | null;
   created_at: string;
   updated_at: string;
 };

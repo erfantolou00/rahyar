@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/ui";
+import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { formatNumber, formatPercent, toNumber } from "@/lib/finance/format";
 import { allocationStatusLabels, assetTypeLabels, transactionTypeLabels } from "@/lib/finance/labels";
 import { loadPortfolio, readRows } from "@/lib/finance/queries";
@@ -46,7 +46,7 @@ export default async function OverviewPage() {
           {portfolio.data.byType.length === 0 ? (
             <EmptyState>
               هنوز دارایی یا محدوده‌ای ثبت نشده. از{" "}
-              <Link href="/assets" className="underline underline-offset-4">
+              <Link href="/basket" className="underline underline-offset-4">
                 دارایی‌ها
               </Link>{" "}
               شروع کنید.
@@ -56,7 +56,7 @@ export default async function OverviewPage() {
               {portfolio.data.byType.map((row) => (
                 <li key={row.type} className="flex items-center justify-between gap-3 text-sm">
                   <span>{assetTypeLabels[row.type]}</span>
-                  <span className="text-muted">
+                  <span className="text-muted-foreground">
                     <span className="numeric">{formatPercent(row.weight)}</span>
                     {" · "}
                     {allocationStatusLabels[row.status]}
@@ -82,7 +82,7 @@ export default async function OverviewPage() {
               {transactions.data.map((row) => (
                 <li key={row.id} className="flex justify-between gap-3">
                   <span>{row.note || transactionTypeLabels[row.type]}</span>
-                  <span className="numeric text-muted">{formatNumber(toNumber(row.qty))}</span>
+                  <span className="numeric text-muted-foreground">{formatNumber(toNumber(row.qty))}</span>
                 </li>
               ))}
             </ul>

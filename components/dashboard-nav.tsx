@@ -6,7 +6,7 @@ import { signOut } from "@/app/login/actions";
 
 const links = [
   { href: "/", label: "نمای کلی" },
-  { href: "/assets", label: "دارایی‌ها" },
+  { href: "/basket", label: "سبد دارایی" },
   { href: "/transactions", label: "تراکنش‌ها" },
   { href: "/prices", label: "قیمت‌ها" },
   { href: "/allocations", label: "تخصیص" },
@@ -23,11 +23,11 @@ export function DashboardNav({ email }: { email: string }) {
     <header className="border-b border-line bg-card/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
         <div>
-          <p className="text-xs text-muted">دستیار مالی شخصی</p>
+          <p className="text-xs text-muted-foreground">دستیار مالی شخصی</p>
           <p className="text-lg font-semibold">رهیار</p>
         </div>
         <div className="flex items-center gap-3">
-          <p className="hidden text-xs text-muted sm:block" dir="ltr">
+          <p className="hidden text-xs text-muted-foreground sm:block" dir="ltr">
             {email}
           </p>
           <form action={signOut}>
@@ -49,7 +49,7 @@ export function DashboardNav({ email }: { email: string }) {
               href={link.href}
               aria-current={active ? "page" : undefined}
               className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm ${
-                active ? "bg-accent text-white" : "text-foreground hover:bg-accent-soft"
+                active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-accent-soft"
               }`}
             >
               {link.label}

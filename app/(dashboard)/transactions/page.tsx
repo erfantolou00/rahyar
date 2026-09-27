@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/ui";
+import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { createTransaction } from "@/app/(dashboard)/transactions/actions";
 import { formatDay, formatNumber, toNumber } from "@/lib/finance/format";
 import { transactionTypeLabels } from "@/lib/finance/labels";

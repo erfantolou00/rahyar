@@ -22,7 +22,7 @@ export function MfaEnrollForm() {
         <button
           type="submit"
           disabled={enrolling}
-          className="rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium disabled:opacity-60"
         >
           {enrolling ? "در حال ساخت..." : "فعال‌سازی رمز یک‌بارمصرف"}
         </button>
@@ -35,7 +35,7 @@ export function MfaEnrollForm() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={qr} alt="کد QR برنامه احراز هویت" className="h-40 w-40 rounded-xl bg-white p-2" />
           {state?.secret ? (
-            <p className="numeric text-sm text-muted" dir="ltr">
+            <p className="numeric text-sm text-muted-foreground" dir="ltr">
               {state.secret}
             </p>
           ) : null}

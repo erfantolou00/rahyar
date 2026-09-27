@@ -21,9 +21,9 @@ export default async function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col justify-center px-4 py-16">
-      <p className="text-sm text-muted">دستیار مالی شخصی</p>
+      <p className="text-sm text-muted-foreground">دستیار مالی شخصی</p>
       <h1 className="mt-1 text-3xl font-semibold">ورود به رهیار</h1>
-      <p className="mt-3 text-sm leading-7 text-muted">
+      <p className="mt-3 text-sm leading-7 text-muted-foreground">
         این دفتر فقط برای یک حساب است. ثبت‌نام عمومی وجود ندارد.
       </p>
       {!hasSupabaseEnv() || !hasAllowlist() ? (

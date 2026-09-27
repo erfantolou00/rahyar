@@ -23,9 +23,9 @@ export default async function MfaPage() {
 
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col justify-center px-4 py-16">
-      <p className="text-sm text-muted">ورود دو مرحله‌ای</p>
+      <p className="text-sm text-muted-foreground">ورود دو مرحله‌ای</p>
       <h1 className="mt-1 text-3xl font-semibold">رمز یک‌بارمصرف</h1>
-      <p className="mt-3 text-sm leading-7 text-muted">
+      <p className="mt-3 text-sm leading-7 text-muted-foreground">
         رمز شش‌رقمی برنامه احراز هویت را وارد کنید.
       </p>
       <div className="mt-6 rounded-2xl border border-line bg-card p-5 shadow-sm">
