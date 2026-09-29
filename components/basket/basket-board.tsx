@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
 import { AssetFields } from "@/components/basket/asset-fields";
 import { basketColumns, emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
-import type { PresentedRow, ValueTone } from "@/lib/finance/basket-view";
+import type { PresentedMark, PresentedRow, ValueTone } from "@/lib/finance/basket-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,12 +27,14 @@ const toneClass: Record<ValueTone, string> = {
 };
 
 export function BasketBoard({
+  marks,
   rows,
   totalValue,
   totalAbsolute,
   totalPercent,
   totalTone,
 }: {
+  marks: PresentedMark[];
   rows: PresentedRow[];
   totalValue: string;
   totalAbsolute: string;
@@ -44,6 +46,19 @@ export function BasketBoard({
 
   return (
     <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        {marks.map((mark) => (
+          <Card key={mark.title} size="sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{mark.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-lg font-semibold">{mark.price}</p>
+              <p className={mark.stale ? "text-sm text-warn" : "text-sm text-muted-foreground"}>{mark.updatedLabel}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Summary label="ارزش سبد" value={totalValue} />
         <Summary label="سود/زیان" value={totalAbsolute} tone={totalTone} />
@@ -91,6 +106,11 @@ export function BasketBoard({
                           <span className={column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : undefined}>
                             {row.cells[column.key]}
                           </span>
+                          {column.key === "currentPrice" && row.updatedLabel ? (
+                            <p className={row.stale ? "mt-1 text-xs text-warn" : "mt-1 text-xs text-muted-foreground"}>
+                              {row.updatedLabel}
+                            </p>
+                          ) : null}
                         </TableCell>
                       ))}
                       <TableCell>
@@ -112,12 +132,19 @@ export function BasketBoard({
                   </CardHeader>
                   <CardContent className="grid gap-2">
                     {basketColumns.slice(1).map((column) => (
-                      <p key={column.key} className="flex items-center justify-between gap-3 text-sm">
+                      <div key={column.key} className="flex items-start justify-between gap-3 text-sm">
                         <span className="text-muted-foreground">{column.label}</span>
-                        <span className={`${column.numeric ? "numeric" : ""} ${column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""}`}>
-                          {row.cells[column.key]}
+                        <span className="text-left">
+                          <span className={`${column.numeric ? "numeric" : ""} ${column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""}`}>
+                            {row.cells[column.key]}
+                          </span>
+                          {column.key === "currentPrice" && row.updatedLabel ? (
+                            <span className={row.stale ? "mt-1 block text-xs text-warn" : "mt-1 block text-xs text-muted-foreground"}>
+                              {row.updatedLabel}
+                            </span>
+                          ) : null}
                         </span>
-                      </p>
+                      </div>
                     ))}
                     <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />
                   </CardContent>

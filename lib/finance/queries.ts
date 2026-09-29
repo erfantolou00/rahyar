@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildBasket, buildPortfolio } from "@/lib/finance/portfolio";
 import { toNumber } from "@/lib/finance/format";
+import { instrumentForSymbol, latestQuote } from "@/lib/finance/prices/match";
+import { buildBasket, buildPortfolio } from "@/lib/finance/portfolio";
 import type {
   Allocation,
   Asset,
@@ -63,24 +64,44 @@ export async function loadPortfolio(
 export async function loadBasket(
   supabase: FinanceClient,
 ): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
-  const assets = await readRows<Asset>(
-    supabase.from("assets").select("*").order("symbol", { ascending: true }),
-  );
+  const [assets, prices] = await Promise.all([
+    readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true })),
+    readRows<Price>(supabase.from("prices").select("*").order("timestamp", { ascending: false })),
+  ]);
   if (!assets.ok) return assets;
+  const priceRows = prices.ok ? prices.data : [];
 
   return {
     ok: true,
     data: buildBasket(
-      assets.data.map((asset) => ({
-        id: asset.id,
-        name: asset.symbol,
-        type: asset.type,
-        quantity: toNumber(asset.quantity),
-        avgBuyPrice: asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price),
-        currentPrice: asset.manual_value == null ? null : toNumber(asset.manual_value),
-      })),
+      assets.data.map((asset) => {
+        const instrument = instrumentForSymbol(asset.symbol);
+        const live = instrument ? latestQuote(priceRows, instrument) : null;
+        const manual = asset.manual_value == null ? null : toNumber(asset.manual_value);
+        return {
+          id: asset.id,
+          name: asset.symbol,
+          type: asset.type,
+          quantity: toNumber(asset.quantity),
+          avgBuyPrice: asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price),
+          currentPrice: live ? toNumber(live.price) : manual,
+          quotedAt: live?.timestamp ?? null,
+          priceOrigin: live ? "live" : manual != null ? "manual" : "none",
+        };
+      }),
     ),
   };
+}
+
+export async function loadLivePrices(supabase: FinanceClient): Promise<Price[]> {
+  const prices = await readRows<Price>(
+    supabase
+      .from("prices")
+      .select("*")
+      .in("symbol", ["USD", "GOLD18", "BTC"])
+      .order("timestamp", { ascending: false }),
+  );
+  return prices.ok ? prices.data : [];
 }
 
 export function snapshotJson(snapshot: PortfolioSnapshot): Json {

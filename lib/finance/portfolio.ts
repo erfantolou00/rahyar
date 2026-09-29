@@ -101,11 +101,15 @@ export type BasketPosition = PositionNumbers & {
   id: string;
   name: string;
   type: AssetType;
+  quotedAt?: string | null;
+  priceOrigin?: "live" | "manual" | "none";
 };
 
 export type BasketRow = BasketPosition & ProfitLoss & {
   currentValue: number | null;
   weight: number | null;
+  quotedAt: string | null;
+  priceOrigin: "live" | "manual" | "none";
 };
 
 export type BasketSummary = {
@@ -156,7 +160,13 @@ export function weightPercent(value: number | null, totalValue: number): number 
 export function buildBasket(positions: BasketPosition[]): BasketSummary {
   const valued = positions.map((position) => {
     const currentValue = positionValue(position.quantity, position.currentPrice);
-    return { ...position, currentValue, ...profitAndLoss(position) };
+    return {
+      ...position,
+      currentValue,
+      quotedAt: position.quotedAt ?? null,
+      priceOrigin: position.priceOrigin ?? "none",
+      ...profitAndLoss(position),
+    };
   });
 
   const totalValue = valued.reduce(
