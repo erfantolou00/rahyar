@@ -1,12 +1,14 @@
 import type {
   Allocation,
   Alert,
+  AlertFrequency,
   AlertKind,
   Asset,
   AssetType,
   ChatLog,
   ChatRole,
   Json,
+  NotifyFrequency,
   Numeric,
   Price,
   PriceUnit,
@@ -14,6 +16,7 @@ import type {
   ReportType,
   Transaction,
   TransactionType,
+  UserSettings,
 } from "@/lib/finance/types";
 
 export type Database = {
@@ -107,8 +110,32 @@ export type Database = {
           message?: string | null;
           asset_type?: AssetType | null;
           created_at?: string;
+          sent?: boolean;
+          sent_at?: string | null;
         };
         Update: Partial<Alert>;
+        Relationships: [];
+      };
+      settings: {
+        Row: UserSettings;
+        Insert: {
+          user_id?: string;
+          telegram_chat_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<UserSettings>;
+        Relationships: [];
+      };
+      alert_frequencies: {
+        Row: AlertFrequency;
+        Insert: {
+          user_id?: string;
+          kind: AlertKind;
+          frequency: NotifyFrequency;
+          last_sent_at?: string | null;
+        };
+        Update: Partial<AlertFrequency>;
         Relationships: [];
       };
       reports: {

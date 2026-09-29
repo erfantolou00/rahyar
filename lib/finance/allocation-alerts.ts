@@ -4,6 +4,7 @@ import {
 } from "@/lib/finance/allocation-deviation";
 import { readRows, type FinanceClient, type LoadResult } from "@/lib/finance/queries";
 import type { Allocation, Alert, AssetType, PortfolioSnapshot } from "@/lib/finance/types";
+import { dispatchTelegramAlerts } from "@/lib/telegram/dispatch";
 
 /**
  * Stores allocation_deviation rows for display.
@@ -42,6 +43,11 @@ export async function syncAllocationDeviationAlerts(
   );
   if (!existing.ok) return existing;
 
+  const finish = async (result: LoadResult<AllocationDeviation[]>) => {
+    await dispatchTelegramAlerts(supabase);
+    return result;
+  };
+
   const pending = new Map<AssetType, Alert>();
   for (const row of existing.data) {
     if (row.asset_type) pending.set(row.asset_type, row);
@@ -66,7 +72,7 @@ export async function syncAllocationDeviationAlerts(
       if (error) {
         if (error.code === "23505") continue;
         console.error(error);
-        return { ok: false, missingSchema: schemaGap(error) };
+        return finish({ ok: false, missingSchema: schemaGap(error) });
       }
       continue;
     }
@@ -86,7 +92,7 @@ export async function syncAllocationDeviationAlerts(
       .eq("id", current.id);
     if (error) {
       console.error(error);
-      return { ok: false, missingSchema: schemaGap(error) };
+      return finish({ ok: false, missingSchema: schemaGap(error) });
     }
   }
 
@@ -94,9 +100,9 @@ export async function syncAllocationDeviationAlerts(
     const { error } = await supabase.from("alerts").update({ is_active: false }).eq("id", stale.id);
     if (error) {
       console.error(error);
-      return { ok: false, missingSchema: schemaGap(error) };
+      return finish({ ok: false, missingSchema: schemaGap(error) });
     }
   }
 
-  return { ok: true, data: deviations };
+  return finish({ ok: true, data: deviations });
 }

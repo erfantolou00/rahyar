@@ -79,6 +79,18 @@ export const alertKinds = ["rule", "allocation_deviation"] as const;
 
 export type AlertKind = (typeof alertKinds)[number];
 
+export const notifyFrequencies = ["immediate", "daily", "weekly", "off"] as const;
+
+export type NotifyFrequency = (typeof notifyFrequencies)[number];
+
+export function isAlertKind(value: string): value is AlertKind {
+  return alertKinds.some((kind) => kind === value);
+}
+
+export function isNotifyFrequency(value: string): value is NotifyFrequency {
+  return notifyFrequencies.some((frequency) => frequency === value);
+}
+
 export type Alert = {
   id: string;
   user_id: string;
@@ -91,6 +103,22 @@ export type Alert = {
   message: string | null;
   asset_type: AssetType | null;
   created_at: string;
+  sent: boolean;
+  sent_at: string | null;
+};
+
+export type UserSettings = {
+  user_id: string;
+  telegram_chat_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AlertFrequency = {
+  user_id: string;
+  kind: AlertKind;
+  frequency: NotifyFrequency;
+  last_sent_at: string | null;
 };
 
 export type Report = {

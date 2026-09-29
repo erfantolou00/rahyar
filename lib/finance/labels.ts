@@ -1,7 +1,9 @@
 import type {
+  AlertKind,
   AllocationStatus,
   AssetType,
   ChatRole,
+  NotifyFrequency,
   ReportType,
   TransactionType,
 } from "@/lib/finance/types";
@@ -43,6 +45,18 @@ export const allocationStatusLabels: Record<AllocationStatus, string> = {
   below: "کمتر از حداقل",
   above: "بیشتر از حداکثر",
   unset: "بدون محدوده",
+};
+
+export const alertKindLabels: Record<AlertKind, string> = {
+  rule: "قاعدهٔ دستی",
+  allocation_deviation: "انحراف تخصیص",
+};
+
+export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {
+  immediate: "فوری",
+  daily: "روزانه",
+  weekly: "هفتگی",
+  off: "خاموش",
 };
 
 export const riskLabels: Record<number, string> = {

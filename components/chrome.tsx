@@ -90,6 +90,9 @@ const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
   prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
+  chat_locked: "شناسه گفتگوی تلگرام قبلاً ثبت شده و قابل تغییر نیست.",
+  chat_missing: "ابتدا شناسه گفتگوی تلگرام را یک بار ثبت کنید.",
+  telegram: "ارسال تلگرام انجام نشد. هشدارهای ناموفق برای تلاش بعدی مانده‌اند.",
 };
 
 export function errorMessage(code: string | undefined): string | null {
