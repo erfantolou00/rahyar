@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { RefreshPricesButton } from "@/components/refresh-prices-button";
+import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { createPrice } from "@/app/(dashboard)/prices/actions";
 import { formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
 import { assetTypeLabels } from "@/lib/finance/labels";
@@ -16,6 +18,7 @@ export default async function PricesPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+  await ensureLivePrices(supabase);
   const prices = await readRows<Price>(
     supabase.from("prices").select("*").order("timestamp", { ascending: false }).limit(100),
   );
@@ -24,7 +27,8 @@ export default async function PricesPage({
     <div>
       <PageHeader
         title="قیمت‌ها"
-        description="هر قیمت متعلق به همین حساب است. آخرین قیمت هر نماد در ارزش دفتر استفاده می‌شود."
+        description="هر قیمت متعلق به همین حساب است. آخرین قیمت هر نماد در ارزش دفتر استفاده می‌شود. اگر قیمت‌ها کهنه باشند، با باز کردن صفحه تازه می‌شوند."
+        action={<RefreshPricesButton returnTo="/prices" />}
       />
       <Notice message={errorMessage(params.error)} />
       {!prices.ok ? (

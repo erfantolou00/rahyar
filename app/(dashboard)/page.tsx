@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
+import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { formatNumber, formatPercent, toNumber } from "@/lib/finance/format";
+import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { allocationStatusLabels, assetTypeLabels, transactionTypeLabels } from "@/lib/finance/labels";
 import { loadPortfolio, readRows } from "@/lib/finance/queries";
 import type { Alert, Transaction } from "@/lib/finance/types";
@@ -11,6 +13,7 @@ export const metadata: Metadata = { title: "نمای کلی" };
 
 export default async function OverviewPage() {
   const supabase = await createClient();
+  await ensureLivePrices(supabase);
   const [portfolio, transactions, alerts] = await Promise.all([
     loadPortfolio(supabase),
     readRows<Transaction>(
@@ -25,7 +28,8 @@ export default async function OverviewPage() {
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمتی نباشد، میانگین خرید به‌کار می‌رود."
+        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، با باز کردن صفحه تازه می‌شوند."
+        action={<RefreshPricesButton returnTo="/" />}
       />
       <div className="grid gap-4 md:grid-cols-3">
         <Panel title="ارزش کل">

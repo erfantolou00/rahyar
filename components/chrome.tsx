@@ -3,14 +3,19 @@ import type { ReactNode } from "react";
 export function PageHeader({
   title,
   description,
+  action,
 }: {
   title: string;
   description?: string;
+  action?: ReactNode;
 }) {
   return (
-    <header className="mb-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{description}</p> : null}
+    <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{description}</p> : null}
+      </div>
+      {action}
     </header>
   );
 }
@@ -84,6 +89,7 @@ export function SubmitButton({ children }: { children: ReactNode }) {
 const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
+  prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
 };
 
 export function errorMessage(code: string | undefined): string | null {

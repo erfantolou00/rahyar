@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BasketBoard } from "@/components/basket/basket-board";
 import { Notice, PageHeader, SchemaNotice, errorMessage } from "@/components/chrome";
+import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { presentBasket, presentMarks } from "@/lib/finance/basket-view";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { loadBasket, loadLivePrices } from "@/lib/finance/queries";
@@ -28,6 +29,7 @@ export default async function BasketPage({
       <PageHeader
         title="سبد دارایی"
         description="دلار، طلای ۱۸ عیار و بیت‌کوین از قیمت زنده به ریال حساب می‌شوند. نام این دارایی‌ها را دلار، طلا یا بیت‌کوین بگذارید. بقیهٔ دارایی‌ها با قیمت دستی می‌مانند."
+        action={<RefreshPricesButton returnTo="/basket" />}
       />
       <Notice message={errorMessage(params.error)} />
       <BasketBoard
