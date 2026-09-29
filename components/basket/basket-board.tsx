@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableTable, type SortableColumn } from "@/components/sortable-table";
 
 const toneClass: Record<ValueTone, string> = {
   up: "text-ok",
@@ -71,7 +71,9 @@ export function BasketBoard({
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
-              <DialogDescription>قیمت فعلی، قیمت هر واحد به ریال است. ارزش کل و سود روی سرور حساب می‌شود.</DialogDescription>
+              <DialogDescription>
+                مبنای قیمت را ریال یا دلار انتخاب کنید. تعداد می‌تواند اعشاری باشد، مثل ۰٫۰۰۰۳ بیت‌کوین. اگر قیمت فعلی خالی بماند، قیمت زنده استفاده می‌شود.
+              </DialogDescription>
             </DialogHeader>
             <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" />
           </DialogContent>
@@ -84,44 +86,39 @@ export function BasketBoard({
         </Card>
       ) : (
         <>
-          <Card className="hidden overflow-visible md:block">
-            <CardContent className="px-2">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {basketColumns.map((column) => (
-                      <TableHead key={column.key}>{column.label}</TableHead>
-                    ))}
-                    <TableHead>عملیات</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {basketColumns.map((column) => (
-                        <TableCell
-                          key={column.key}
-                          className={column.numeric ? "numeric" : undefined}
-                        >
-                          <span className={column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : undefined}>
-                            {row.cells[column.key]}
-                          </span>
-                          {column.key === "currentPrice" && row.updatedLabel ? (
-                            <p className={row.stale ? "mt-1 text-xs text-warn" : "mt-1 text-xs text-muted-foreground"}>
-                              {row.updatedLabel}
-                            </p>
-                          ) : null}
-                        </TableCell>
-                      ))}
-                      <TableCell>
-                        <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="hidden md:block">
+            <SortableTable
+              rows={rows}
+              rowKey={(row) => row.id}
+              minWidth="64rem"
+              columns={basketColumns.map((column): SortableColumn<PresentedRow> => ({
+                key: column.key,
+                label: column.label,
+                numeric: column.numeric,
+                sortValue: (row) => row.sort[column.key],
+                render: (row) => (
+                  <div>
+                    <span
+                      className={`${column.numeric ? "numeric" : ""} ${
+                        column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""
+                      }`}
+                    >
+                      {row.cells[column.key]}
+                    </span>
+                    {column.key === "currentPrice" && row.updatedLabel ? (
+                      <p className={row.stale ? "mt-1 text-xs text-warn" : "mt-1 text-xs text-muted-foreground"}>
+                        {row.updatedLabel}
+                      </p>
+                    ) : null}
+                  </div>
+                ),
+              }))}
+              trailing={{
+                label: "عملیات",
+                render: (row) => <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />,
+              }}
+            />
+          </div>
 
           <ul className="grid gap-3 md:hidden">
             {rows.map((row) => (
@@ -159,7 +156,7 @@ export function BasketBoard({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>ویرایش دارایی</DialogTitle>
-            <DialogDescription>تغییرها بعد از ذخیره در محاسبهٔ سبد اعمال می‌شود.</DialogDescription>
+            <DialogDescription>قیمت‌ها با همان مبنای ذخیره‌شده، ریال یا دلار، ویرایش می‌شوند.</DialogDescription>
           </DialogHeader>
           {editing ? (
             <AssetEditor

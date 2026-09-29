@@ -115,7 +115,6 @@ body {
 }
 
 .numeric {
-  direction: ltr;
   unicode-bidi: isolate;
   font-variant-numeric: tabular-nums;
 }
@@ -134,18 +133,32 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-table th {
-  text-align: right;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  padding: 0.65rem 0.4rem;
+table th,
+table td {
+  text-align: start;
+  vertical-align: middle;
+  padding: 0.8rem 0.9rem;
   border-bottom: 1px solid var(--line);
 }
 
-table td {
-  padding: 0.7rem 0.4rem;
-  border-bottom: 1px solid var(--line);
-  vertical-align: top;
+table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 72%, var(--card));
+  white-space: nowrap;
+}
+
+table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+table tbody tr {
+  transition: background-color 150ms ease;
+}
+
+table tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
 }
 
 .dark {

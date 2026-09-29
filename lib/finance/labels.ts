@@ -10,6 +10,7 @@ export const assetTypeLabels: Record<AssetType, string> = {
   stock: "سهام",
   gold: "طلا",
   coin: "سکه",
+  usd: "دلار",
   crypto: "رمزارز",
   cash: "نقد",
   fund: "صندوق",

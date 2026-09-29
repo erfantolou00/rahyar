@@ -28,7 +28,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-line bg-card p-4 shadow-sm">
       {title ? <h2 className="mb-4 text-base font-semibold">{title}</h2> : null}
       {children}
     </section>

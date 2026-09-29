@@ -1,4 +1,7 @@
+import { effectiveAllocationClass } from "@/lib/finance/allocation-class";
 import { toNumber } from "@/lib/finance/format";
+import { instrumentForAsset, latestQuote } from "@/lib/finance/prices/match";
+import { amountInRial, quoteInUnit, type PriceUnit } from "@/lib/finance/prices/unit";
 import type {
   Allocation,
   Asset,
@@ -11,6 +14,30 @@ import type {
 
 function priceKey(type: string, symbol: string): string {
   return `${type}:${symbol.trim().toUpperCase()}`;
+}
+
+function marketUnitPrice(asset: Asset, quotes: Map<string, Price>, prices: Price[]): number | null {
+  const usdRial = dollarRate(prices);
+  const unit: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
+  if (asset.manual_value != null) {
+    return amountInRial(toNumber(asset.manual_value), unit, usdRial);
+  }
+  const direct = quotes.get(priceKey(asset.type, asset.symbol));
+  const instrument = instrumentForAsset(asset.type, asset.symbol);
+  if (!direct && instrument) {
+    const live = latestQuote(prices, instrument);
+    if (live) {
+      const inUnit = quoteInUnit(instrument, toNumber(live.price), unit, usdRial);
+      return amountInRial(inUnit, unit, usdRial);
+    }
+  }
+  if (direct) return toNumber(direct.price);
+  return null;
+}
+
+function dollarRate(prices: Price[]): number | null {
+  const usd = latestQuote(prices, "USD");
+  return usd ? toNumber(usd.price) : null;
 }
 
 export function latestPrices(prices: Price[]): Map<string, Price> {
@@ -33,10 +60,12 @@ export function buildPortfolio(
 ): PortfolioSnapshot {
   const quotes = latestPrices(prices);
   const holdings: HoldingSnapshot[] = assets.map((asset) => {
-    const quote = quotes.get(priceKey(asset.type, asset.symbol));
-    const marketPrice = quote ? toNumber(quote.price) : null;
+    const marketPrice = marketUnitPrice(asset, quotes, prices);
+    const unitBasis: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
     const cost =
-      asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price);
+      asset.avg_buy_price == null
+        ? null
+        : amountInRial(toNumber(asset.avg_buy_price), unitBasis, dollarRate(prices));
     const unit = marketPrice ?? cost ?? 0;
     const quantity = toNumber(asset.quantity);
     return {
@@ -57,9 +86,12 @@ export function buildPortfolio(
   }
 
   const valueByType = new Map<AssetType, number>();
-  for (const holding of holdings) {
-    valueByType.set(holding.type, (valueByType.get(holding.type) ?? 0) + holding.value);
-  }
+  assets.forEach((asset, index) => {
+    const holding = holdings[index];
+    if (!holding) return;
+    const exposure = effectiveAllocationClass(asset);
+    valueByType.set(exposure, (valueByType.get(exposure) ?? 0) + holding.value);
+  });
 
   const openAllocations = allocations.filter((row) => row.valid_to == null);
   const bandByType = new Map(openAllocations.map((row) => [row.asset_type, row]));
@@ -101,8 +133,14 @@ export type BasketPosition = PositionNumbers & {
   id: string;
   name: string;
   type: AssetType;
+  priceUnit?: PriceUnit;
+  displayAvgBuyPrice?: number | null;
+  displayCurrentPrice?: number | null;
+  manualPrice?: number | null;
   quotedAt?: string | null;
   priceOrigin?: "live" | "manual" | "none";
+  allocationClass?: AssetType;
+  allocationClassSource?: "auto" | "manual";
 };
 
 export type BasketRow = BasketPosition & ProfitLoss & {

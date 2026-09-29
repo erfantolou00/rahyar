@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { effectiveAllocationClass } from "@/lib/finance/allocation-class";
 import { toNumber } from "@/lib/finance/format";
-import { instrumentForSymbol, latestQuote } from "@/lib/finance/prices/match";
+import { instrumentForAsset, latestQuote } from "@/lib/finance/prices/match";
+import { amountInRial, quoteInUnit, type PriceUnit } from "@/lib/finance/prices/unit";
 import { buildBasket, buildPortfolio } from "@/lib/finance/portfolio";
 import type {
   Allocation,
@@ -75,18 +77,31 @@ export async function loadBasket(
     ok: true,
     data: buildBasket(
       assets.data.map((asset) => {
-        const instrument = instrumentForSymbol(asset.symbol);
+        const instrument = instrumentForAsset(asset.type, asset.symbol);
+        const unit: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
+        const usd = latestQuote(priceRows, "USD");
+        const usdRial = usd ? toNumber(usd.price) : null;
         const live = instrument ? latestQuote(priceRows, instrument) : null;
         const manual = asset.manual_value == null ? null : toNumber(asset.manual_value);
+        const liveDisplay =
+          live && instrument ? quoteInUnit(instrument, toNumber(live.price), unit, usdRial) : null;
+        const displayCurrent = manual ?? liveDisplay;
+        const displayBuy = asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price);
         return {
           id: asset.id,
           name: asset.symbol,
           type: asset.type,
           quantity: toNumber(asset.quantity),
-          avgBuyPrice: asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price),
-          currentPrice: live ? toNumber(live.price) : manual,
-          quotedAt: live?.timestamp ?? null,
-          priceOrigin: live ? "live" : manual != null ? "manual" : "none",
+          priceUnit: unit,
+          displayAvgBuyPrice: displayBuy,
+          displayCurrentPrice: displayCurrent,
+          manualPrice: manual,
+          avgBuyPrice: amountInRial(displayBuy, unit, usdRial),
+          currentPrice: amountInRial(displayCurrent, unit, usdRial),
+          quotedAt: manual == null ? live?.timestamp ?? null : null,
+          priceOrigin: manual != null ? "manual" : liveDisplay != null ? "live" : "none",
+          allocationClass: effectiveAllocationClass(asset),
+          allocationClassSource: asset.allocation_class_source === "manual" ? "manual" : "auto",
         };
       }),
     ),

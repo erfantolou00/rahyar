@@ -23,6 +23,22 @@ export function formatMoney(value: number): string {
   return `${amount} ${moneyUnit}`;
 }
 
+export function formatDollar(value: number, digits = 0): string {
+  return `${formatNumber(value, digits)} دلار`;
+}
+
+export function formatQuantity(value: number): string {
+  return formatNumber(value, 8);
+}
+
+export function plainNumber(value: number | null): string {
+  if (value == null) return "";
+  return new Intl.NumberFormat("en-US", {
+    useGrouping: false,
+    maximumFractionDigits: 8,
+  }).format(value);
+}
+
 export function formatPercent(value: number): string {
   return `${formatNumber(value, 2)}٪`;
 }

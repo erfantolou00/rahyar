@@ -19,18 +19,23 @@ export default async function AlertsPage({
 
   return (
     <div>
-      <PageHeader title="هشدارها" description="قاعده، آستانه، کانال و تناوب. ارسال خودکار در این نسخه وصل نشده است." />
+      <PageHeader
+        title="هشدارها"
+        description="قاعده‌هایی که خودتان می‌نویسید. انحراف تخصیص جداگانه در نمای کلی نشان داده می‌شود و فقط یک جملهٔ پیشنهادی است؛ دکمه‌ای برای خرید یا فروش ندارد."
+      />
       <Notice message={errorMessage(params.error)} />
       {!alerts.ok ? (
         <SchemaNotice missing={alerts.missingSchema} />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <Panel title="قواعد">
-            {alerts.data.length === 0 ? (
+            {alerts.data.filter((alert) => alert.kind !== "allocation_deviation").length === 0 ? (
               <EmptyState>هشداری تعریف نشده است.</EmptyState>
             ) : (
               <ul className="grid gap-3">
-                {alerts.data.map((alert) => (
+                {alerts.data
+                  .filter((alert) => alert.kind !== "allocation_deviation")
+                  .map((alert) => (
                   <li key={alert.id} className="flex items-start justify-between gap-3 border-b border-line pb-3 text-sm">
                     <div>
                       <p className="font-medium">{alert.rule}</p>

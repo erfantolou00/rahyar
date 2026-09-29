@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBasket,
+  buildPortfolio,
   costBasis,
   profitAndLoss,
   weightPercent,
   type BasketPosition,
 } from "@/lib/finance/portfolio";
+import type { Asset, Price } from "@/lib/finance/types";
 
 function position(overrides: Partial<BasketPosition> = {}): BasketPosition {
   return {
@@ -96,6 +98,48 @@ describe("weightPercent", () => {
 
   it("returns null when the position has no value", () => {
     expect(weightPercent(null, 100)).toBeNull();
+  });
+});
+
+function asset(overrides: Partial<Asset> = {}): Asset {
+  return {
+    id: "1",
+    user_id: "user",
+    type: "usd",
+    symbol: "پس‌انداز",
+    quantity: 2,
+    avg_buy_price: null,
+    target_min_weight: null,
+    target_max_weight: null,
+    risk_level: null,
+    manual_value: null,
+    price_unit: "rial",
+    allocation_class: "usd",
+    allocation_class_source: "auto",
+    created_at: "2026-09-29T00:00:00Z",
+    updated_at: "2026-09-29T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function quote(overrides: Partial<Price> = {}): Price {
+  return {
+    id: "p",
+    user_id: "user",
+    asset_type: "usd",
+    symbol: "USD",
+    price: 800_000,
+    source: "tgju-json:price_dollar_rl",
+    timestamp: "2026-09-29T00:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("buildPortfolio", () => {
+  it("values a dollar holding from the live USD quote", () => {
+    const snapshot = buildPortfolio([asset()], [quote()], []);
+    expect(snapshot.holdings[0]?.price).toBe(800_000);
+    expect(snapshot.holdings[0]?.value).toBe(1_600_000);
   });
 });
 

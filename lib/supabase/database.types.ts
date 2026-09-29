@@ -1,6 +1,7 @@
 import type {
   Allocation,
   Alert,
+  AlertKind,
   Asset,
   AssetType,
   ChatLog,
@@ -8,6 +9,7 @@ import type {
   Json,
   Numeric,
   Price,
+  PriceUnit,
   Report,
   ReportType,
   Transaction,
@@ -30,6 +32,9 @@ export type Database = {
           target_max_weight?: Numeric | null;
           risk_level?: number | null;
           manual_value?: Numeric | null;
+          price_unit?: PriceUnit;
+          allocation_class?: AssetType;
+          allocation_class_source?: "auto" | "manual";
           created_at?: string;
           updated_at?: string;
         };
@@ -98,6 +103,10 @@ export type Database = {
           channel: string;
           is_active?: boolean;
           frequency: string;
+          kind?: AlertKind;
+          message?: string | null;
+          asset_type?: AssetType | null;
+          created_at?: string;
         };
         Update: Partial<Alert>;
         Relationships: [];

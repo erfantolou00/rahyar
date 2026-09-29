@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AllocationDeviationPanel } from "@/components/allocation-deviation-panel";
 import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
+import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
 import { formatNumber, formatPercent, toNumber } from "@/lib/finance/format";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { allocationStatusLabels, assetTypeLabels, transactionTypeLabels } from "@/lib/finance/labels";
 import { loadPortfolio, readRows } from "@/lib/finance/queries";
-import type { Alert, Transaction } from "@/lib/finance/types";
+import type { Alert, Allocation, Transaction } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "نمای کلی" };
@@ -14,15 +16,31 @@ export const metadata: Metadata = { title: "نمای کلی" };
 export default async function OverviewPage() {
   const supabase = await createClient();
   await ensureLivePrices(supabase);
-  const [portfolio, transactions, alerts] = await Promise.all([
+  const [portfolio, transactions, alerts, allocationRows] = await Promise.all([
     loadPortfolio(supabase),
     readRows<Transaction>(
       supabase.from("transactions").select("*").order("date", { ascending: false }).limit(5),
     ),
     readRows<Alert>(supabase.from("alerts").select("*").eq("is_active", true)),
+    readRows<Allocation>(supabase.from("allocations").select("*")),
   ]);
 
   if (!portfolio.ok) return <SchemaNotice missing={portfolio.missingSchema} />;
+
+  const deviations = allocationRows.ok
+    ? deviationsForSnapshot(portfolio.data, allocationRows.data)
+    : [];
+  const saved = allocationRows.ok ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
+  const saveState = !allocationRows.ok
+    ? "saved"
+    : saved?.ok
+      ? "saved"
+      : saved?.missingSchema
+        ? "missing"
+        : "failed";
+  const activeRules = alerts.ok
+    ? alerts.data.filter((alert) => alert.kind !== "allocation_deviation")
+    : null;
 
   return (
     <div>
@@ -31,7 +49,12 @@ export default async function OverviewPage() {
         description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، با باز کردن صفحه تازه می‌شوند."
         action={<RefreshPricesButton returnTo="/" />}
       />
-      <div className="grid gap-4 md:grid-cols-3">
+      <AllocationDeviationPanel
+        deviations={deviations}
+        ready={allocationRows.ok}
+        saveState={saveState}
+      />
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
         <Panel title="ارزش کل">
           <p className="numeric text-3xl font-semibold">{formatNumber(portfolio.data.totalValue, 0)}</p>
         </Panel>
@@ -40,13 +63,13 @@ export default async function OverviewPage() {
         </Panel>
         <Panel title="هشدار فعال">
           <p className="numeric text-3xl font-semibold">
-            {alerts.ok ? formatNumber(alerts.data.length, 0) : "—"}
+            {activeRules ? formatNumber(activeRules.length, 0) : "—"}
           </p>
         </Panel>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel title="وزن انواع دارایی">
+        <Panel title="وزن طبقات تخصیص">
           {portfolio.data.byType.length === 0 ? (
             <EmptyState>
               هنوز دارایی یا محدوده‌ای ثبت نشده. از{" "}

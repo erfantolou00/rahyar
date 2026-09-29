@@ -2,6 +2,7 @@ export const assetTypes = [
   "stock",
   "gold",
   "coin",
+  "usd",
   "crypto",
   "cash",
   "fund",
@@ -22,6 +23,8 @@ export type ChatRole = (typeof chatRoles)[number];
 
 export type Numeric = number | string;
 
+export type PriceUnit = "rial" | "usd";
+
 export type Asset = {
   id: string;
   user_id: string;
@@ -33,6 +36,9 @@ export type Asset = {
   target_max_weight: Numeric | null;
   risk_level: number | null;
   manual_value: Numeric | null;
+  price_unit: PriceUnit;
+  allocation_class: AssetType;
+  allocation_class_source: "auto" | "manual";
   created_at: string;
   updated_at: string;
 };
@@ -69,6 +75,10 @@ export type Allocation = {
   valid_to: string | null;
 };
 
+export const alertKinds = ["rule", "allocation_deviation"] as const;
+
+export type AlertKind = (typeof alertKinds)[number];
+
 export type Alert = {
   id: string;
   user_id: string;
@@ -77,6 +87,10 @@ export type Alert = {
   channel: string;
   is_active: boolean;
   frequency: string;
+  kind: AlertKind;
+  message: string | null;
+  asset_type: AssetType | null;
+  created_at: string;
 };
 
 export type Report = {

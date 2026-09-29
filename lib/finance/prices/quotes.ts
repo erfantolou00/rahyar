@@ -1,3 +1,4 @@
+import { btcInUsdt } from "@/lib/finance/prices/btc";
 import { fetchWithFallback } from "@/lib/finance/prices/fetch-with-fallback";
 import { fetchText, scrapeTgjuProfile, tgjuPrice } from "@/lib/finance/prices/tgju";
 import type { LiveSymbol } from "@/lib/finance/prices/match";
@@ -24,7 +25,7 @@ export async function fetchUsdQuote(): Promise<MarketQuote | null> {
     { name: "tgju-json:price_dollar_rl", run: () => tgjuPrice("price_dollar_rl") },
     { name: "tgju-page:price_dollar_rl", run: () => scrapeTgjuProfile(dollarPage) },
   ]);
-  return result ? quote("USD", "cash", result.price, result.source) : null;
+  return result ? quote("USD", "usd", result.price, result.source) : null;
 }
 
 export async function fetchGoldQuote(): Promise<MarketQuote | null> {
@@ -37,22 +38,65 @@ export async function fetchGoldQuote(): Promise<MarketQuote | null> {
 
 export async function fetchBtcQuote(): Promise<MarketQuote | null> {
   const result = await fetchWithFallback([
-    { name: "binance:BTCUSDT", run: binanceBtcInRial },
-    { name: "tgju-json:crypto-bitcoin-irr", run: () => tgjuPrice("crypto-bitcoin-irr") },
-    { name: "tgju-page:crypto-bitcoin-irr", run: () => scrapeTgjuProfile(bitcoinPage) },
+    { name: "nobitex:btc-usdt", run: nobitexBtcUsdt },
+    { name: "binance:BTCUSDT", run: binanceBtcUsdt },
+    { name: "coingecko:bitcoin-usd", run: coingeckoBtcUsd },
+    { name: "tgju-json:crypto-bitcoin-irr/usd", run: tgjuJsonBtcUsdt },
+    { name: "tgju-page:crypto-bitcoin-irr/usd", run: tgjuPageBtcUsdt },
   ]);
   return result ? quote("BTC", "crypto", result.price, result.source) : null;
 }
 
-async function binanceBtcInRial(): Promise<number> {
-  const [tickerText, usdIrr] = await Promise.all([
-    fetchText("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", 4_000),
-    tgjuPrice("price_dollar_rl"),
-  ]);
+async function nobitexBtcUsdt(): Promise<number> {
+  const text = await fetchText(
+    "https://apiv2.nobitex.ir/market/stats?srcCurrency=btc&dstCurrency=usdt",
+    4_000,
+  );
+  const body = JSON.parse(text) as { stats?: { "btc-usdt"?: { latest?: string } } };
+  const price = Number(body.stats?.["btc-usdt"]?.latest);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("nobitex price missing");
+  return price;
+}
+
+async function binanceBtcUsdt(): Promise<number> {
+  const tickerText = await fetchText("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", 4_000);
   const ticker = JSON.parse(tickerText) as { price?: string };
   const btcUsd = Number(ticker.price);
   if (!Number.isFinite(btcUsd) || btcUsd <= 0) throw new Error("binance price missing");
-  return btcUsd * usdIrr;
+  return btcUsd;
+}
+
+async function coingeckoBtcUsd(): Promise<number> {
+  const text = await fetchText(
+    "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+    4_000,
+  );
+  const body = JSON.parse(text) as { bitcoin?: { usd?: number } };
+  const price = Number(body.bitcoin?.usd);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("coingecko price missing");
+  return price;
+}
+
+async function tgjuJsonBtcUsdt(): Promise<number> {
+  const [btcRial, usdRial] = await Promise.all([
+    tgjuPrice("crypto-bitcoin-irr"),
+    tgjuPrice("price_dollar_rl"),
+  ]);
+  return requireBtcUsdt(btcRial, usdRial);
+}
+
+async function tgjuPageBtcUsdt(): Promise<number> {
+  const [btcRial, usdRial] = await Promise.all([
+    scrapeTgjuProfile(bitcoinPage),
+    tgjuPrice("price_dollar_rl"),
+  ]);
+  return requireBtcUsdt(btcRial, usdRial);
+}
+
+function requireBtcUsdt(btcRial: number, usdRial: number): number {
+  const usdt = btcInUsdt(btcRial, usdRial);
+  if (usdt == null) throw new Error("bitcoin dollar conversion failed");
+  return usdt;
 }
 
 export async function fetchMarketQuotes(): Promise<MarketQuote[]> {

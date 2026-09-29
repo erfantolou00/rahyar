@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { replaceAllocation } from "@/app/(dashboard)/allocations/actions";
+import { AllocationsTable, type AllocationTableRow } from "@/components/allocations-table";
+import { allocationClasses } from "@/lib/finance/allocation-class";
 import { formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
-import { assetTypes, type Allocation } from "@/lib/finance/types";
+import type { Allocation } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "تخصیص" };
@@ -29,7 +31,7 @@ export default async function AllocationsPage({
     <div>
       <PageHeader
         title="تخصیص"
-        description="نسخهٔ قبلی حذف نمی‌شود. با ثبت محدودهٔ جدید، valid_to نسخهٔ باز پر می‌شود و یک ردیف تازه ساخته می‌شود."
+        description="بازه برای طبقهٔ تخصیص است، نه نوع ابزار. سکه و صندوق عیار هر دو در طبقهٔ طلا جمع می‌شوند. نسخهٔ قبلی حذف نمی‌شود: با ثبت محدودهٔ جدید، valid_to نسخهٔ باز همان لحظه پر می‌شود. این فرم معامله‌ای انجام نمی‌دهد."
       />
       <Notice message={errorMessage(params.error)} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -51,9 +53,9 @@ export default async function AllocationsPage({
         </div>
         <Panel title="نسخهٔ جدید">
           <form action={replaceAllocation} className="grid gap-3">
-            <Field label="نوع دارایی">
+            <Field label="طبقه تخصیص">
               <select name="asset_type" required className="field-input">
-                {assetTypes.map((type) => (
+                {allocationClasses.map((type) => (
                   <option key={type} value={type}>
                     {assetTypeLabels[type]}
                   </option>
@@ -78,32 +80,18 @@ export default async function AllocationsPage({
 }
 
 function AllocationTable({ rows }: { rows: Allocation[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[36rem] text-sm">
-        <thead>
-          <tr>
-            <th>نوع</th>
-            <th>حداقل</th>
-            <th>حداکثر</th>
-            <th>فرمول</th>
-            <th>از</th>
-            <th>تا</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>{assetTypeLabels[row.asset_type]}</td>
-              <td className="numeric">{formatNumber(toNumber(row.min_percent), 2)}</td>
-              <td className="numeric">{formatNumber(toNumber(row.max_percent), 2)}</td>
-              <td className="numeric">{row.formula_version}</td>
-              <td>{formatTimestamp(row.valid_from)}</td>
-              <td>{row.valid_to ? formatTimestamp(row.valid_to) : "باز"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const tableRows: AllocationTableRow[] = rows.map((row) => ({
+    id: row.id,
+    typeLabel: assetTypeLabels[row.asset_type],
+    minLabel: formatNumber(toNumber(row.min_percent), 2),
+    minValue: toNumber(row.min_percent),
+    maxLabel: formatNumber(toNumber(row.max_percent), 2),
+    maxValue: toNumber(row.max_percent),
+    formula: row.formula_version,
+    fromLabel: formatTimestamp(row.valid_from),
+    fromValue: row.valid_from,
+    toLabel: row.valid_to ? formatTimestamp(row.valid_to) : "باز",
+    toValue: row.valid_to,
+  }));
+  return <AllocationsTable rows={tableRows} />;
 }

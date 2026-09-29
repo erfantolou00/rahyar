@@ -27,6 +27,11 @@ export function instrumentForSymbol(symbol: string): LiveSymbol | null {
   return null;
 }
 
+export function instrumentForAsset(type: string, symbol: string): LiveSymbol | null {
+  if (type === "usd") return "USD";
+  return instrumentForSymbol(symbol);
+}
+
 export function latestQuote<T extends { symbol: string; timestamp: string }>(
   prices: T[],
   instrument: LiveSymbol,

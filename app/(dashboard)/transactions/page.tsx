@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { createTransaction } from "@/app/(dashboard)/transactions/actions";
+import { TransactionsTable } from "@/components/transactions-table";
 import { formatDay, formatNumber, toNumber } from "@/lib/finance/format";
 import { transactionTypeLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
@@ -36,32 +37,20 @@ export default async function TransactionsPage({
           {transactions.data.length === 0 ? (
             <EmptyState>تراکنشی ثبت نشده است.</EmptyState>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[36rem] text-sm">
-                <thead>
-                  <tr>
-                    <th>تاریخ</th>
-                    <th>دارایی</th>
-                    <th>نوع</th>
-                    <th>مقدار</th>
-                    <th>قیمت</th>
-                    <th>یادداشت</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.data.map((row) => (
-                    <tr key={row.id}>
-                      <td>{formatDay(row.date)}</td>
-                      <td className="numeric">{symbols.get(row.asset_id) ?? "—"}</td>
-                      <td>{transactionTypeLabels[row.type]}</td>
-                      <td className="numeric">{formatNumber(toNumber(row.qty))}</td>
-                      <td className="numeric">{formatNumber(toNumber(row.price))}</td>
-                      <td>{row.note || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TransactionsTable
+              rows={transactions.data.map((row) => ({
+                id: row.id,
+                dateLabel: formatDay(row.date),
+                dateValue: row.date,
+                asset: symbols.get(row.asset_id) ?? "—",
+                typeLabel: transactionTypeLabels[row.type],
+                qtyLabel: formatNumber(toNumber(row.qty)),
+                qtyValue: toNumber(row.qty),
+                priceLabel: formatNumber(toNumber(row.price)),
+                priceValue: toNumber(row.price),
+                note: row.note || "—",
+              }))}
+            />
           )}
         </Panel>
         <Panel title="تراکنش جدید">

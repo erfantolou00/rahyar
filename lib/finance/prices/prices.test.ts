@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { priceAge } from "@/lib/finance/prices/age";
 import { fetchWithFallback } from "@/lib/finance/prices/fetch-with-fallback";
-import { instrumentForSymbol } from "@/lib/finance/prices/match";
+import { instrumentForAsset, instrumentForSymbol } from "@/lib/finance/prices/match";
+import { describeSource } from "@/lib/finance/prices/source-label";
 
 describe("fetchWithFallback", () => {
   it("uses the second source when the first fails", async () => {
@@ -42,5 +43,27 @@ describe("instrumentForSymbol", () => {
     expect(instrumentForSymbol("طلای ۱۸ عیار")).toBe("GOLD18");
     expect(instrumentForSymbol("بیت‌کوین")).toBe("BTC");
     expect(instrumentForSymbol("شبندر")).toBeNull();
+  });
+});
+
+describe("instrumentForAsset", () => {
+  it("treats the dollar type as the live USD quote", () => {
+    expect(instrumentForAsset("usd", "پس‌انداز")).toBe("USD");
+    expect(instrumentForAsset("cash", "دلار")).toBe("USD");
+    expect(instrumentForAsset("stock", "فولاد")).toBeNull();
+  });
+});
+
+describe("describeSource", () => {
+  it("abbreviates known feeds and keeps the full name", () => {
+    expect(describeSource("tgju-json:price_dollar_rl")).toEqual({
+      short: "TGJU",
+      full: "نرخ دلار، وب‌سرویس شبکه اطلاع‌رسانی طلا و ارز (TGJU)",
+    });
+    expect(describeSource("binance:BTCUSDT").short).toBe("بایننس");
+    expect(describeSource("دستی")).toEqual({
+      short: "دستی",
+      full: "قیمت واردشده به‌صورت دستی",
+    });
   });
 });

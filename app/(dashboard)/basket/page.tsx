@@ -28,7 +28,7 @@ export default async function BasketPage({
     <div>
       <PageHeader
         title="سبد دارایی"
-        description="دلار، طلای ۱۸ عیار و بیت‌کوین از قیمت زنده به ریال حساب می‌شوند. نام این دارایی‌ها را دلار، طلا یا بیت‌کوین بگذارید. بقیهٔ دارایی‌ها با قیمت دستی می‌مانند."
+        description="قیمت بیت‌کوین به دلار نشان داده می‌شود و ارزشش در سبد با نرخ دلار به ریال حساب می‌شود. طبقهٔ تخصیص جدا از نوع ابزار است: سکه و صندوق عیار خودکار در طلا جمع می‌شوند و بازهٔ سبد روی همان طبقه حساب می‌شود."
         action={<RefreshPricesButton returnTo="/basket" />}
       />
       <Notice message={errorMessage(params.error)} />

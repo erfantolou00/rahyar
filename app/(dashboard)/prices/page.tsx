@@ -3,7 +3,9 @@ import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButto
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { createPrice } from "@/app/(dashboard)/prices/actions";
-import { formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
+import { PricesTable } from "@/components/prices-table";
+import { formatDollar, formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
+import { btcInUsdt } from "@/lib/finance/prices/btc";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
 import { assetTypes, type Price } from "@/lib/finance/types";
@@ -39,30 +41,22 @@ export default async function PricesPage({
             {prices.data.length === 0 ? (
               <EmptyState>قیمتی ثبت نشده است.</EmptyState>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[36rem] text-sm">
-                  <thead>
-                    <tr>
-                      <th>زمان</th>
-                      <th>نوع</th>
-                      <th>نماد</th>
-                      <th>قیمت</th>
-                      <th>منبع</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prices.data.map((row) => (
-                      <tr key={row.id}>
-                        <td>{formatTimestamp(row.timestamp)}</td>
-                        <td>{assetTypeLabels[row.asset_type]}</td>
-                        <td className="numeric">{row.symbol}</td>
-                        <td className="numeric">{formatNumber(toNumber(row.price))}</td>
-                        <td>{row.source}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <PricesTable
+                rows={prices.data.map((row) => {
+                  const raw = toNumber(row.price);
+                  const shown = shownPrice(row.symbol, raw, dollarRate(prices.data));
+                  return {
+                    id: row.id,
+                    timeLabel: formatTimestamp(row.timestamp),
+                    timeValue: new Date(row.timestamp).getTime(),
+                    typeLabel: assetTypeLabels[row.asset_type],
+                    symbol: row.symbol,
+                    priceLabel: row.symbol === "BTC" && shown != null ? formatDollar(shown) : formatNumber(shown ?? raw),
+                    priceValue: shown ?? raw,
+                    source: row.source,
+                  };
+                })}
+              />
             )}
           </Panel>
           <Panel title="قیمت جدید">
@@ -92,4 +86,14 @@ export default async function PricesPage({
       )}
     </div>
   );
+}
+
+function dollarRate(prices: Price[]): number | null {
+  const usd = prices.find((row) => row.symbol === "USD");
+  return usd ? toNumber(usd.price) : null;
+}
+
+function shownPrice(symbol: string, raw: number, usdRial: number | null): number | null {
+  if (symbol !== "BTC") return raw;
+  return btcInUsdt(raw, usdRial);
 }
