@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatNumber, toNumber } from "@/lib/finance/format";
-import { formatAlertMessage } from "@/lib/telegram/message";
+import { formatAlertMessage } from "@/lib/alerts/format";
 import type { Alert } from "@/lib/finance/types";
 
 function alert(overrides: Partial<Alert> = {}): Alert {

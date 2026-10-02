@@ -1,8 +1,8 @@
 import type { FinanceClient } from "@/lib/finance/queries";
 import type { Alert, AlertFrequency, NotifyFrequency } from "@/lib/finance/types";
 import { isNotifyFrequency } from "@/lib/finance/types";
-import { formatAlertMessage } from "@/lib/telegram/message";
-import { deliveryDecision } from "@/lib/telegram/policy";
+import { formatAlertMessage } from "@/lib/alerts/format";
+import { deliveryDecision } from "@/lib/alerts/frequency-policy";
 import { sendBaleMessage, type BaleSendResult } from "@/lib/bale/send";
 import { sendBrowserNotification, type PushSendResult, type PushTarget } from "@/lib/notify/push";
 

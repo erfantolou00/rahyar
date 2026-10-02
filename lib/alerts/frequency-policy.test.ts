@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryDecision } from "@/lib/telegram/policy";
+import { deliveryDecision } from "@/lib/alerts/frequency-policy";
 
 const now = new Date("2026-09-29T16:41:00.000Z");
 

@@ -5,7 +5,7 @@ import {
 import { readRows, type FinanceClient, type LoadResult } from "@/lib/finance/queries";
 import { isNotifyFrequency, type AlertFrequency, type Allocation, type Alert, type AssetType, type NotifyFrequency, type PortfolioSnapshot } from "@/lib/finance/types";
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
-import { deliveryDecision } from "@/lib/telegram/policy";
+import { deliveryDecision } from "@/lib/alerts/frequency-policy";
 
 /**
  * Stores allocation_deviation rows for display.
