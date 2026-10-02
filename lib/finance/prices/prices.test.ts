@@ -61,6 +61,9 @@ describe("describeSource", () => {
       full: "نرخ دلار، وب‌سرویس شبکه اطلاع‌رسانی طلا و ارز (TGJU)",
     });
     expect(describeSource("binance:BTCUSDT").short).toBe("بایننس");
+    expect(describeSource("nobitex:usdt-rls").short).toBe("نوبیتکس");
+    expect(describeSource("nobitex:btc-usdt").full).toContain("بیت‌کوین");
+    expect(describeSource("gold-api:XAU*nobitex:usdt-rls").short).toBe("انس جهانی");
     expect(describeSource("دستی")).toEqual({
       short: "دستی",
       full: "قیمت واردشده به‌صورت دستی",

@@ -24,10 +24,24 @@ export function describeSource(source: string): SourceLabel {
     };
   }
 
+  if (trimmed.startsWith("nobitex:usdt-rls")) {
+    return {
+      short: "نوبیتکس",
+      full: "نرخ تتر به ریال در نوبیتکس",
+    };
+  }
+
   if (trimmed.startsWith("nobitex")) {
     return {
       short: "نوبیتکس",
       full: "قیمت بیت‌کوین به تتر در نوبیتکس",
+    };
+  }
+
+  if (trimmed.startsWith("gold-api")) {
+    return {
+      short: "انس جهانی",
+      full: "گرم ۱۸ عیار از انس جهانی ضرب در نرخ تتر نوبیتکس",
     };
   }
 
