@@ -3,9 +3,9 @@ import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButto
 import { createAlert, linkBaleChat, retryAlertDelivery, setAlertActive, setAlertFrequency, setBaleChatId } from "@/app/(dashboard)/alerts/actions";
 import { EnablePushButton } from "@/components/enable-push-button";
 import { formatNumber, toNumber } from "@/lib/finance/format";
-import { alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
+import { alertChannelLabels, alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
-import { alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type PushSubscriptionRecord, type UserSettings } from "@/lib/finance/types";
+import { alertChannels, alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type PushSubscriptionRecord, type UserSettings } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "هشدارها" };
@@ -92,10 +92,22 @@ export default async function AlertsPage({
                 <input name="threshold" required inputMode="decimal" dir="ltr" className="field-input text-left" />
               </Field>
               <Field label="کانال">
-                <input name="channel" required maxLength={40} defaultValue="in_app" className="field-input" />
+                <select name="channel" required defaultValue="in_app" className="field-input">
+                  {alertChannels.map((channel) => (
+                    <option key={channel} value={channel}>
+                      {alertChannelLabels[channel]}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="یادداشت تناوب">
-                <input name="frequency" required maxLength={40} defaultValue="daily" className="field-input" />
+                <select name="frequency" required defaultValue="daily" className="field-input">
+                  {notifyFrequencies.map((frequency) => (
+                    <option key={frequency} value={frequency}>
+                      {notifyFrequencyLabels[frequency]}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <p className="text-xs leading-6 text-muted-foreground">
                 این متن فقط روی کارت قاعده دیده می‌شود. زمان اعلان از تناوب نوع هشدار در بخش پایین پیروی می‌کند.

@@ -1,4 +1,5 @@
 import type {
+  AlertChannel,
   AlertKind,
   AllocationStatus,
   AssetType,
@@ -50,6 +51,12 @@ export const allocationStatusLabels: Record<AllocationStatus, string> = {
 export const alertKindLabels: Record<AlertKind, string> = {
   rule: "قاعدهٔ دستی",
   allocation_deviation: "انحراف تخصیص",
+};
+
+export const alertChannelLabels: Record<AlertChannel, string> = {
+  in_app: "داخل برنامه",
+  bale: "بله",
+  push: "اعلان مرورگر",
 };
 
 export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {

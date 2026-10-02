@@ -79,6 +79,10 @@ export const alertKinds = ["rule", "allocation_deviation"] as const;
 
 export type AlertKind = (typeof alertKinds)[number];
 
+export const alertChannels = ["in_app", "bale", "push"] as const;
+
+export type AlertChannel = (typeof alertChannels)[number];
+
 export const notifyFrequencies = ["immediate", "daily", "weekly", "off"] as const;
 
 export type NotifyFrequency = (typeof notifyFrequencies)[number];
