@@ -1,4 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { InstallPrompt } from "@/components/install-prompt";
+import { PwaRegister } from "@/components/pwa-register";
 import { DirectionProvider } from "@/components/ui/direction";
 import "./globals.css";
 
@@ -8,7 +10,24 @@ export const metadata: Metadata = {
     template: "%s | رهیار",
   },
   description: "دستیار مالی شخصی",
+  applicationName: "رهیار",
   robots: { index: false, follow: false },
+  appleWebApp: {
+    capable: true,
+    title: "رهیار",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icon-192.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#9a4b1f",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -24,7 +43,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-full">
-        <DirectionProvider direction="rtl">{children}</DirectionProvider>
+        <DirectionProvider direction="rtl">
+          {children}
+          <PwaRegister />
+          <InstallPrompt />
+        </DirectionProvider>
       </body>
     </html>
   );

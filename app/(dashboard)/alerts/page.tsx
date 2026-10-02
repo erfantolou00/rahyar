@@ -123,7 +123,6 @@ export default async function AlertsPage({
             <p className="mb-4 text-sm leading-7 text-muted-foreground">
               هشدار تازه به اعلان مرورگر و، اگر شناسه بله ذخیره شده باشد، به بازوی بله می‌رود.
               قبل از ارسال، تناوب همان نوع هشدار چک می‌شود. اگر یکی از مسیرهای فعال پیام را نپذیرد، هشدار ارسال‌نشده می‌ماند.
-              روی آیفون ابتدا رهیار را به صفحهٔ اصلی اضافه کنید.
             </p>
             <EnablePushButton publicKey={vapidPublicKey} registered={subscriptions.data.length} />
             <div className="mt-4 border-t border-line pt-4">

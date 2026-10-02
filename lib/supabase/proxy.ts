@@ -9,7 +9,7 @@ import {
   isAllowedEmail,
 } from "@/lib/supabase/env";
 
-const PUBLIC_PATHS = new Set(["/login", "/login/mfa", "/api/health", "/sw.js", "/manifest.webmanifest"]);
+const PUBLIC_PATHS = new Set(["/login", "/login/mfa", "/api/health", "/sw.js", "/manifest.webmanifest", "/offline.html"]);
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

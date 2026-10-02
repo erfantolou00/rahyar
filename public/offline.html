@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>آفلاین | رهیار</title>
+    <link rel="icon" href="/icon-192.png" />
+    <style>
+      @font-face {
+        font-family: Vazirmatn;
+        src: url("/fonts/vazirmatn.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Vazirmatn, Tahoma, sans-serif;
+        background:
+          radial-gradient(900px 420px at 100% -10%, #f6e4cf 0%, transparent 60%),
+          #f3efe4;
+        color: #1d1a16;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border-bottom: 1px solid #e3d9c6;
+        background: rgba(255, 253, 248, 0.9);
+        padding: 1rem 1.25rem;
+      }
+
+      header img {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.5rem;
+      }
+
+      header p {
+        margin: 0;
+        color: #6f675c;
+        font-size: 0.75rem;
+      }
+
+      header strong {
+        display: block;
+        font-size: 1.125rem;
+      }
+
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2rem 1rem 3rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+
+      .lead,
+      .meta,
+      .empty {
+        color: #6f675c;
+        font-size: 0.875rem;
+        line-height: 1.8;
+      }
+
+      section {
+        margin-top: 1.5rem;
+        overflow: hidden;
+        border: 1px solid #e3d9c6;
+        border-radius: 1rem;
+        background: #fffdf8;
+        padding: 1rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      th,
+      td {
+        padding: 0.7rem 0.4rem;
+        border-bottom: 1px solid #e3d9c6;
+        text-align: start;
+      }
+
+      th {
+        color: #6f675c;
+        font-size: 0.75rem;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .numeric {
+        unicode-bidi: isolate;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="/icon-192.png" alt="" width="32" height="32" />
+      <div>
+        <p>دستیار مالی شخصی</p>
+        <strong>رهیار</strong>
+      </div>
+    </header>
+    <main>
+      <h1>آفلاین</h1>
+      <p class="lead">
+        اینترنت قطع است. گفتگو و به‌روزرسانی زندهٔ قیمت کار نمی‌کند. آخرین قیمت‌هایی که روی این دستگاه ذخیره شده‌اند پایین آمده است.
+      </p>
+      <section>
+        <h2>آخرین قیمت‌ها</h2>
+        <p id="saved-at" class="meta"></p>
+        <p id="empty" class="empty">قیمتی در این دستگاه ذخیره نشده است. یک‌بار با اینترنت نمای کلی را باز کنید.</p>
+        <table id="prices" hidden>
+          <thead>
+            <tr>
+              <th>نوع</th>
+              <th>نماد</th>
+              <th>قیمت</th>
+              <th>زمان</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+    <script>
+      (function () {
+        var key = "rahyar-prices";
+        var parsed = null;
+        try {
+          var raw = localStorage.getItem(key);
+          parsed = raw ? JSON.parse(raw) : null;
+        } catch (error) {
+          parsed = null;
+        }
+
+        var rows = parsed && Array.isArray(parsed.rows) ? parsed.rows : [];
+        var savedAt = document.getElementById("saved-at");
+        var empty = document.getElementById("empty");
+        var table = document.getElementById("prices");
+        var body = table.querySelector("tbody");
+
+        if (parsed && typeof parsed.savedAt === "string") {
+          var when = new Date(parsed.savedAt);
+          savedAt.textContent = Number.isNaN(when.getTime())
+            ? ""
+            : "آخرین ذخیره: " +
+              when.toLocaleString("fa-IR", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tehran" });
+        }
+
+        if (rows.length === 0) return;
+
+        empty.hidden = true;
+        table.hidden = false;
+        rows.forEach(function (row) {
+          if (!row || typeof row !== "object") return;
+          var tr = document.createElement("tr");
+          ["typeLabel", "symbol", "priceLabel", "timeLabel"].forEach(function (field, index) {
+            var cell = document.createElement("td");
+            if (index > 0) cell.className = "numeric";
+            cell.textContent = typeof row[field] === "string" ? row[field] : "";
+            tr.appendChild(cell);
+          });
+          body.appendChild(tr);
+        });
+      })();
+    </script>
+  </body>
+</html>
