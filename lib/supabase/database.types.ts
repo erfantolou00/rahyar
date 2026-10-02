@@ -121,7 +121,6 @@ export type Database = {
         Row: UserSettings;
         Insert: {
           user_id?: string;
-          telegram_chat_id?: string | null;
           bale_chat_id?: string | null;
           created_at?: string;
           updated_at?: string;

@@ -28,7 +28,7 @@ export default async function AlertsPage({
     readRows<Alert>(supabase.from("alerts").select("*").order("rule")),
     readRows<AlertFrequency>(supabase.from("alert_frequencies").select("*")),
     readRows<PushSubscriptionRecord>(supabase.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")),
-    readRows<UserSettings>(supabase.from("settings").select("user_id, telegram_chat_id, bale_chat_id, created_at, updated_at")),
+    readRows<UserSettings>(supabase.from("settings").select("user_id, bale_chat_id, created_at, updated_at")),
   ]);
   const frequencyByKind = new Map((frequencies.ok ? frequencies.data : []).map((row) => [row.kind, row]));
   const deliveryNote = deliveryStatus(params.delivery);
