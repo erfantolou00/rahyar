@@ -3,6 +3,7 @@ import type {
   Alert,
   AlertFrequency,
   AlertKind,
+  PushSubscriptionRecord,
   Asset,
   AssetType,
   ChatLog,
@@ -121,10 +122,24 @@ export type Database = {
         Insert: {
           user_id?: string;
           telegram_chat_id?: string | null;
+          bale_chat_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<UserSettings>;
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: PushSubscriptionRecord;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          created_at?: string;
+        };
+        Update: Partial<PushSubscriptionRecord>;
         Relationships: [];
       };
       alert_frequencies: {

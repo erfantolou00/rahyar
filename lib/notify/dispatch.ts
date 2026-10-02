@@ -1,9 +1,10 @@
 import type { FinanceClient } from "@/lib/finance/queries";
-import type { Alert, AlertFrequency, NotifyFrequency, UserSettings } from "@/lib/finance/types";
+import type { Alert, AlertFrequency, NotifyFrequency } from "@/lib/finance/types";
 import { isNotifyFrequency } from "@/lib/finance/types";
 import { formatAlertMessage } from "@/lib/telegram/message";
 import { deliveryDecision } from "@/lib/telegram/policy";
-import { sendTelegramMessage, type TelegramSendResult } from "@/lib/telegram/send";
+import { sendBaleMessage, type BaleSendResult } from "@/lib/bale/send";
+import { sendBrowserNotification, type PushSendResult, type PushTarget } from "@/lib/notify/push";
 
 const BATCH = 20;
 
@@ -12,14 +13,17 @@ export type DispatchCounts = {
   failed: number;
   waiting: number;
   skipped: number;
-  missingChat: boolean;
+  missingSubscription: boolean;
 };
 
 export type DispatchOutcome =
   | ({ ok: true } & DispatchCounts)
   | { ok: false; missingSchema: boolean };
 
-type SendMessage = (token: string, chatId: string, text: string) => Promise<TelegramSendResult>;
+type SendPush = (target: PushTarget, text: string) => Promise<PushSendResult>;
+type SendBale = (chatId: string, text: string) => Promise<BaleSendResult>;
+
+type SubscriptionRow = PushTarget & { user_id: string };
 
 function schemaGap(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -41,13 +45,14 @@ function lastSentFor(rows: AlertFrequency[], userId: string, kind: Alert["kind"]
   return rows.find((item) => item.user_id === userId && item.kind === kind)?.last_sent_at ?? null;
 }
 
-export async function dispatchTelegramAlerts(
+export async function dispatchAlertNotifications(
   supabase: FinanceClient,
-  options?: { alertId?: string; now?: Date; send?: SendMessage },
+  options?: { alertId?: string; now?: Date; send?: SendPush; sendBale?: SendBale },
 ): Promise<DispatchOutcome> {
   const now = options?.now ?? new Date();
-  const send = options?.send ?? sendTelegramMessage;
-  const empty: DispatchCounts = { sent: 0, failed: 0, waiting: 0, skipped: 0, missingChat: false };
+  const send = options?.send ?? sendBrowserNotification;
+  const sendBale = options?.sendBale ?? sendBaleMessage;
+  const empty: DispatchCounts = { sent: 0, failed: 0, waiting: 0, skipped: 0, missingSubscription: false };
 
   let query = supabase
     .from("alerts")
@@ -69,38 +74,50 @@ export async function dispatchTelegramAlerts(
   if (alerts.length === 0) return { ok: true, ...empty };
 
   const userIds = [...new Set(alerts.map((alert) => alert.user_id))];
-  const [settingsResult, frequencyResult] = await Promise.all([
-    supabase.from("settings").select("user_id, telegram_chat_id").in("user_id", userIds),
+  const [subscriptionResult, frequencyResult, settingsResult] = await Promise.all([
+    supabase.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth").in("user_id", userIds),
     supabase.from("alert_frequencies").select("*").in("user_id", userIds),
+    supabase.from("settings").select("user_id, bale_chat_id").in("user_id", userIds),
   ]);
 
-  if (settingsResult.error) {
-    console.error(settingsResult.error);
-    return { ok: false, missingSchema: schemaGap(settingsResult.error) };
+  if (subscriptionResult.error) {
+    console.error(subscriptionResult.error);
+    return { ok: false, missingSchema: schemaGap(subscriptionResult.error) };
   }
   if (frequencyResult.error) {
     console.error(frequencyResult.error);
     return { ok: false, missingSchema: schemaGap(frequencyResult.error) };
   }
+  if (settingsResult.error) {
+    console.error(settingsResult.error);
+    return { ok: false, missingSchema: schemaGap(settingsResult.error) };
+  }
 
-  const settings = (settingsResult.data ?? []) as Pick<UserSettings, "user_id" | "telegram_chat_id">[];
+  const subscriptions = (subscriptionResult.data ?? []) as SubscriptionRow[];
   const frequencies = (frequencyResult.data ?? []) as AlertFrequency[];
-  const chatByUser = new Map(settings.map((row) => [row.user_id, row.telegram_chat_id]));
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim() || "";
+  const chatByUser = new Map(
+    ((settingsResult.data ?? []) as { user_id: string; bale_chat_id: string | null }[]).map((row) => [
+      row.user_id,
+      row.bale_chat_id,
+    ]),
+  );
   const counts = { ...empty };
   const stamped = new Map<string, string>();
-  let loggedMissingToken = false;
 
   for (const alert of alerts) {
-    const chatId = chatByUser.get(alert.user_id)?.trim() || "";
-    if (!chatId) {
-      counts.missingChat = true;
+    const targets = subscriptions.filter((item) => item.user_id === alert.user_id);
+    const chatId = chatByUser.get(alert.user_id) ?? null;
+    const hasPush = targets.length > 0;
+    const hasBale = Boolean(chatId);
+    if (!hasPush && !hasBale) {
+      counts.missingSubscription = true;
       continue;
     }
 
     const frequency = frequencyFor(frequencies, alert.user_id, alert.kind);
-    const stampKey = `${alert.user_id}:${alert.kind}`;
-    const lastSentAt = stamped.get(stampKey) ?? lastSentFor(frequencies, alert.user_id, alert.kind);
+    const perAsset = alert.kind === "allocation_deviation" && alert.asset_type != null;
+    const stampKey = perAsset ? `${alert.user_id}:${alert.kind}:${alert.asset_type}` : `${alert.user_id}:${alert.kind}`;
+    const lastSentAt = perAsset ? stamped.get(stampKey) ?? null : stamped.get(stampKey) ?? lastSentFor(frequencies, alert.user_id, alert.kind);
     const decision = deliveryDecision(frequency, lastSentAt, now);
 
     if (decision === "skip") {
@@ -111,20 +128,35 @@ export async function dispatchTelegramAlerts(
       counts.waiting += 1;
       continue;
     }
-    if (!token) {
-      if (!loggedMissingToken) {
-        console.error("Missing TELEGRAM_BOT_TOKEN");
-        loggedMissingToken = true;
+
+    const text = formatAlertMessage(alert);
+    let pushDelivered = !hasPush;
+    if (hasPush) {
+      let delivered = false;
+      for (const target of targets) {
+        const result = await send(target, text);
+        if (result.ok) {
+          delivered = true;
+          continue;
+        }
+        console.error(`Browser push failed: ${result.description}`);
+        if (result.gone) {
+          const removed = await supabase.from("push_subscriptions").delete().eq("id", target.id);
+          if (removed.error) console.error(removed.error);
+        }
       }
-      counts.failed += 1;
-      continue;
+      pushDelivered = delivered;
     }
 
-    const delivered = await send(token, chatId, formatAlertMessage(alert));
-    if (!delivered.ok) {
-      console.error(`Telegram send failed: ${delivered.description}`);
+    let baleDelivered = !hasBale;
+    if (hasBale && chatId) {
+      const result = await sendBale(chatId, text);
+      if (result.ok) baleDelivered = true;
+      else console.error(`Bale send failed: ${result.description}`);
+    }
+
+    if (!pushDelivered || !baleDelivered) {
       counts.failed += 1;
-      if (/timeout|network|fetch|aborted|ECONN|ENOTFOUND|HTTP 5/i.test(delivered.description)) break;
       continue;
     }
 
@@ -144,9 +176,7 @@ export async function dispatchTelegramAlerts(
     if (!marked.data?.length) continue;
 
     const remembered = await rememberDelivery(supabase, alert, frequency, sentAt);
-    if (!remembered) {
-      console.error("Telegram accepted the message but the frequency stamp was not saved");
-    }
+    if (!remembered) console.error("Push was accepted but the frequency stamp was not saved");
 
     stamped.set(stampKey, sentAt);
     counts.sent += 1;

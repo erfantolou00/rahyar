@@ -1,45 +1,40 @@
 import type { Metadata } from "next";
 import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
-import { createAlert, retryTelegramDelivery, setAlertActive, setAlertFrequency, setTelegramChatId } from "@/app/(dashboard)/alerts/actions";
+import { createAlert, linkBaleChat, retryAlertDelivery, setAlertActive, setAlertFrequency, setBaleChatId } from "@/app/(dashboard)/alerts/actions";
+import { EnablePushButton } from "@/components/enable-push-button";
 import { formatNumber, toNumber } from "@/lib/finance/format";
 import { alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
-import { alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type UserSettings } from "@/lib/finance/types";
+import { alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type PushSubscriptionRecord, type UserSettings } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "هشدارها" };
 
-function isMissingSchema(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  return (
-    error.code === "PGRST205" ||
-    error.code === "42P01" ||
-    /schema cache|does not exist|could not find the table/i.test(error.message ?? "")
-  );
-}
-
-function telegramStatus(value: string | undefined): string | null {
+function deliveryStatus(value: string | undefined): string | null {
   if (!value) return null;
   const [sent, failed, waiting, skipped] = value.split("-").map((part) => Number(part));
   if ([sent, failed, waiting, skipped].some((count) => !Number.isInteger(count) || count < 0)) return null;
-  return `تلگرام: ${formatNumber(sent, 0)} ارسال شد، ${formatNumber(failed, 0)} ناموفق، ${formatNumber(waiting, 0)} منتظر تناوب، ${formatNumber(skipped, 0)} خاموش.`;
+  return `اعلان: ${formatNumber(sent, 0)} ارسال شد، ${formatNumber(failed, 0)} ناموفق، ${formatNumber(waiting, 0)} منتظر تناوب، ${formatNumber(skipped, 0)} خاموش.`;
 }
 
 export default async function AlertsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; telegram?: string }>;
+  searchParams: Promise<{ error?: string; delivery?: string }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const [alerts, settingsResult, frequencies] = await Promise.all([
+  const [alerts, frequencies, subscriptions, settings] = await Promise.all([
     readRows<Alert>(supabase.from("alerts").select("*").order("rule")),
-    supabase.from("settings").select("*").maybeSingle(),
     readRows<AlertFrequency>(supabase.from("alert_frequencies").select("*")),
+    readRows<PushSubscriptionRecord>(supabase.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")),
+    readRows<UserSettings>(supabase.from("settings").select("user_id, telegram_chat_id, bale_chat_id, created_at, updated_at")),
   ]);
-  const settings = settingsResult.data as UserSettings | null;
   const frequencyByKind = new Map((frequencies.ok ? frequencies.data : []).map((row) => [row.kind, row]));
-  const deliveryNote = telegramStatus(params.telegram);
+  const deliveryNote = deliveryStatus(params.delivery);
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
+  const baleReady = Boolean(process.env.BALE_BOT_TOKEN?.trim());
+  const baleChatId = settings.ok ? settings.data[0]?.bale_chat_id ?? null : null;
 
   return (
     <div>
@@ -73,7 +68,7 @@ export default async function AlertsPage({
                         {" · "}
                         {alert.is_active ? "فعال" : "خاموش"}
                         {" · "}
-                        {alert.sent ? "تلگرام ارسال شد" : "تلگرام در انتظار"}
+                        {alert.sent ? "اعلان ارسال شد" : "اعلان در انتظار"}
                       </p>
                     </div>
                     <form action={setAlertActive}>
@@ -103,7 +98,7 @@ export default async function AlertsPage({
                 <input name="frequency" required maxLength={40} defaultValue="daily" className="field-input" />
               </Field>
               <p className="text-xs leading-6 text-muted-foreground">
-                این متن فقط روی کارت قاعده دیده می‌شود. زمان ارسال تلگرام از تناوب نوع هشدار در بخش پایین پیروی می‌کند.
+                این متن فقط روی کارت قاعده دیده می‌شود. زمان اعلان از تناوب نوع هشدار در بخش پایین پیروی می‌کند.
               </p>
               <SubmitButton>ثبت هشدار</SubmitButton>
             </form>
@@ -111,38 +106,35 @@ export default async function AlertsPage({
         </div>
       )}
       <div className="mt-4">
-        {settingsResult.error || !frequencies.ok ? (
-          <SchemaNotice
-            missing={!frequencies.ok ? frequencies.missingSchema : isMissingSchema(settingsResult.error)}
-          />
-        ) : (
-          <Panel title="تلگرام">
+        {frequencies.ok && subscriptions.ok && settings.ok ? (
+          <Panel title="ارسال هشدار">
             <p className="mb-4 text-sm leading-7 text-muted-foreground">
-              شناسه گفتگو یک بار ذخیره می‌شود. قبل از هر ارسال، تناوب همان نوع هشدار چک می‌شود.
-              اگر تلگرام پیام را نپذیرد، هشدار ارسال‌نشده می‌ماند تا تلاش بعدی.
+              هشدار تازه به اعلان مرورگر و، اگر شناسه بله ذخیره شده باشد، به بازوی بله می‌رود.
+              قبل از ارسال، تناوب همان نوع هشدار چک می‌شود. اگر یکی از مسیرهای فعال پیام را نپذیرد، هشدار ارسال‌نشده می‌ماند.
+              روی آیفون ابتدا رهیار را به صفحهٔ اصلی اضافه کنید.
             </p>
-            {settings?.telegram_chat_id ? (
-              <p className="text-sm">
-                شناسه گفتگو:{" "}
-                <span className="numeric" dir="ltr">
-                  {settings.telegram_chat_id}
-                </span>
+            <EnablePushButton publicKey={vapidPublicKey} registered={subscriptions.data.length} />
+            <div className="mt-4 border-t border-line pt-4">
+              <h3 className="mb-2 text-sm font-medium">بازو بله</h3>
+              <p className="mb-3 text-sm leading-7 text-muted-foreground">
+                در بله با @botfather بازو بسازید و توکن را در BALE_BOT_TOKEN بگذارید. بعد در همان بازو یک پیام بفرستید و شناسه را بخوانید. عدد ابتدای توکن شناسهٔ گفتگو نیست.
+                {baleChatId ? ` شناسه ذخیره‌شده: ${baleChatId}` : " هنوز شناسه‌ای ذخیره نشده است."}
               </p>
-            ) : (
-              <form action={setTelegramChatId} className="grid max-w-sm gap-3">
-                <Field label="شناسه گفتگو">
-                  <input
-                    name="telegram_chat_id"
-                    required
-                    inputMode="numeric"
-                    dir="ltr"
-                    className="field-input text-left"
-                    placeholder="123456789"
-                  />
-                </Field>
-                <SubmitButton>ثبت شناسه</SubmitButton>
+              {baleReady ? null : (
+                <p className="mb-3 text-sm leading-7 text-muted-foreground">توکن بازو هنوز در سرور نیست. بعد از گذاشتن توکن، سرور توسعه را یک‌بار دوباره اجرا کنید.</p>
+              )}
+              <form action={linkBaleChat}>
+                <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm">
+                  خواندن شناسه از بله
+                </button>
               </form>
-            )}
+              <form action={setBaleChatId} className="mt-3 grid gap-3">
+                <Field label="شناسه گفتگو">
+                  <input name="chat_id" required inputMode="numeric" dir="ltr" defaultValue={baleChatId ?? ""} className="field-input text-left" />
+                </Field>
+                <SubmitButton>ذخیره شناسه بله</SubmitButton>
+              </form>
+            </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {alertKinds.map((kind) => (
                 <form key={kind} action={setAlertFrequency} className="grid gap-3">
@@ -164,12 +156,24 @@ export default async function AlertsPage({
                 </form>
               ))}
             </div>
-            <form action={retryTelegramDelivery} className="mt-4">
+            <form action={retryAlertDelivery} className="mt-4">
               <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm">
                 ارسال هشدارهای معوق
               </button>
             </form>
           </Panel>
+        ) : (
+          <SchemaNotice
+            missing={
+              !frequencies.ok
+                ? frequencies.missingSchema
+                : !subscriptions.ok
+                  ? subscriptions.missingSchema
+                  : !settings.ok
+                    ? settings.missingSchema
+                    : false
+            }
+          />
         )}
       </div>
     </div>

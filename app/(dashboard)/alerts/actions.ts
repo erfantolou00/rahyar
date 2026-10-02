@@ -2,26 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isBaleChatId, latestBaleChatId, ownBaleId } from "@/lib/bale/send";
 import { parseRequiredNumber, readString } from "@/lib/finance/parse";
 import { isAlertKind, isNotifyFrequency } from "@/lib/finance/types";
-import { dispatchTelegramAlerts } from "@/lib/telegram/dispatch";
+import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
 import { requireSession } from "@/lib/supabase/auth";
 
-const CHAT_ID = /^-?[0-9]{1,20}$/;
-const persianDigits = "۰۱۲۳۴۵۶۷۸۹";
-const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
-
-function normalizeChatId(value: string): string {
-  let chatId = value.replace(/\s/g, "");
-  for (let index = 0; index < 10; index += 1) {
-    chatId = chatId
-      .replaceAll(persianDigits[index] ?? "", String(index))
-      .replaceAll(arabicDigits[index] ?? "", String(index));
-  }
-  return chatId;
-}
-
-function fail(code: "invalid" | "save" | "chat_locked" | "chat_missing" | "telegram"): never {
+function fail(code: "invalid" | "save" | "push_missing" | "push" | "bale_token" | "bale_chat" | "bale_invalid" | "bale_self"): never {
   redirect(`/alerts?error=${code}`);
 }
 
@@ -49,41 +36,43 @@ export async function createAlert(formData: FormData) {
     fail("save");
   }
 
-  await dispatchTelegramAlerts(supabase);
+  await dispatchAlertNotifications(supabase);
   revalidatePath("/alerts");
   redirect("/alerts");
 }
 
-export async function setTelegramChatId(formData: FormData) {
+async function saveBaleChatId(chatId: string) {
   const { supabase, userId } = await requireSession();
-  const chatId = normalizeChatId(readString(formData, "telegram_chat_id"));
-  if (!CHAT_ID.test(chatId)) fail("invalid");
-
-  const existing = await supabase.from("settings").select("telegram_chat_id").maybeSingle();
-  if (existing.error) {
-    console.error(existing.error);
+  const { error } = await supabase.from("settings").upsert(
+    { user_id: userId, bale_chat_id: chatId },
+    { onConflict: "user_id" },
+  );
+  if (error) {
+    console.error(error);
     fail("save");
   }
-  if (existing.data?.telegram_chat_id) fail("chat_locked");
-
-  const write = existing.data
-    ? await supabase
-        .from("settings")
-        .update({ telegram_chat_id: chatId })
-        .eq("user_id", userId)
-        .is("telegram_chat_id", null)
-        .select("telegram_chat_id")
-    : await supabase.from("settings").insert({ user_id: userId, telegram_chat_id: chatId }).select("telegram_chat_id");
-
-  if (write.error) {
-    console.error(write.error);
-    if (write.error.code === "23514" || write.error.code === "23505") fail("chat_locked");
-    fail("save");
-  }
-  if (!write.data?.length) fail("chat_locked");
-
   revalidatePath("/alerts");
   redirect("/alerts");
+}
+
+export async function setBaleChatId(formData: FormData) {
+  await requireSession();
+  const chatId = readString(formData, "chat_id").trim();
+  if (!isBaleChatId(chatId)) fail("bale_invalid");
+  const ownId = await ownBaleId();
+  if (ownId && chatId === ownId) fail("bale_self");
+  await saveBaleChatId(chatId);
+}
+
+export async function linkBaleChat() {
+  await requireSession();
+  const found = await latestBaleChatId();
+  if (!found.ok) {
+    if (found.description === "missing token") fail("bale_token");
+    console.error(found.description);
+    fail("bale_chat");
+  }
+  await saveBaleChatId(found.chatId);
 }
 
 export async function setAlertFrequency(formData: FormData) {
@@ -105,14 +94,14 @@ export async function setAlertFrequency(formData: FormData) {
   redirect("/alerts");
 }
 
-export async function retryTelegramDelivery() {
+export async function retryAlertDelivery() {
   const { supabase } = await requireSession();
-  const result = await dispatchTelegramAlerts(supabase);
-  if (!result.ok) fail("telegram");
-  if (result.missingChat && result.sent === 0 && result.failed === 0) fail("chat_missing");
+  const result = await dispatchAlertNotifications(supabase);
+  if (!result.ok) fail("push");
+  if (result.missingSubscription && result.sent === 0 && result.failed === 0) fail("push_missing");
 
   revalidatePath("/alerts");
-  redirect(`/alerts?telegram=${result.sent}-${result.failed}-${result.waiting}-${result.skipped}`);
+  redirect(`/alerts?delivery=${result.sent}-${result.failed}-${result.waiting}-${result.skipped}`);
 }
 
 export async function setAlertActive(formData: FormData) {

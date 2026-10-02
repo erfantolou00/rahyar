@@ -3,8 +3,9 @@ import {
   type AllocationDeviation,
 } from "@/lib/finance/allocation-deviation";
 import { readRows, type FinanceClient, type LoadResult } from "@/lib/finance/queries";
-import type { Allocation, Alert, AssetType, PortfolioSnapshot } from "@/lib/finance/types";
-import { dispatchTelegramAlerts } from "@/lib/telegram/dispatch";
+import { isNotifyFrequency, type AlertFrequency, type Allocation, type Alert, type AssetType, type NotifyFrequency, type PortfolioSnapshot } from "@/lib/finance/types";
+import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
+import { deliveryDecision } from "@/lib/telegram/policy";
 
 /**
  * Stores allocation_deviation rows for display.
@@ -26,6 +27,19 @@ function schemaGap(error: { code?: string; message?: string } | null): boolean {
   );
 }
 
+/** Requeue when the sentence changes, or when a sent row's own cadence window has elapsed. */
+export function deviationShouldRequeue(
+  sent: boolean,
+  sentAt: string | null,
+  frequency: NotifyFrequency,
+  now: Date,
+  changed: boolean,
+): boolean {
+  if (changed) return true;
+  if (!sent) return false;
+  return deliveryDecision(frequency, sentAt, now) === "send";
+}
+
 export function deviationsForSnapshot(
   snapshot: PortfolioSnapshot,
   allocations: Allocation[],
@@ -44,9 +58,17 @@ export async function syncAllocationDeviationAlerts(
   if (!existing.ok) return existing;
 
   const finish = async (result: LoadResult<AllocationDeviation[]>) => {
-    await dispatchTelegramAlerts(supabase);
+    await dispatchAlertNotifications(supabase);
     return result;
   };
+
+  const frequencyRows = await readRows<AlertFrequency>(
+    supabase.from("alert_frequencies").select("*").eq("kind", ALLOCATION_DEVIATION_KIND),
+  );
+  if (!frequencyRows.ok) return frequencyRows;
+  const storedFrequency = frequencyRows.data[0]?.frequency;
+  const frequency = storedFrequency && isNotifyFrequency(storedFrequency) ? storedFrequency : "immediate";
+  const now = new Date();
 
   const pending = new Map<AssetType, Alert>();
   for (const row of existing.data) {
@@ -77,7 +99,8 @@ export async function syncAllocationDeviationAlerts(
       continue;
     }
 
-    if (current.message === message && Number(current.threshold) === deviation.shiftPercent) continue;
+    const changed = current.message !== message || Number(current.threshold) !== deviation.shiftPercent;
+    if (!deviationShouldRequeue(current.sent, current.sent_at, frequency, now, changed)) continue;
 
     const { error } = await supabase
       .from("alerts")
@@ -88,6 +111,8 @@ export async function syncAllocationDeviationAlerts(
         channel: DEVIATION_CHANNEL,
         frequency: DEVIATION_FREQUENCY,
         is_active: true,
+        sent: false,
+        sent_at: null,
       })
       .eq("id", current.id);
     if (error) {

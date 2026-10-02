@@ -110,6 +110,7 @@ export type Alert = {
 export type UserSettings = {
   user_id: string;
   telegram_chat_id: string | null;
+  bale_chat_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -119,6 +120,15 @@ export type AlertFrequency = {
   kind: AlertKind;
   frequency: NotifyFrequency;
   last_sent_at: string | null;
+};
+
+export type PushSubscriptionRecord = {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
 };
 
 export type Report = {
