@@ -14,6 +14,7 @@ import type {
   Price,
   PriceUnit,
   Report,
+  MacroIndicatorRow,
   StockFundamentals,
   ReportType,
   Transaction,
@@ -186,6 +187,19 @@ export type Database = {
           fetched_at?: string;
         };
         Update: Partial<StockFundamentals>;
+        Relationships: [];
+      };
+      macro_indicators: {
+        Row: MacroIndicatorRow;
+        Insert: {
+          id?: string;
+          indicator: string;
+          value: Numeric;
+          date: string;
+          source: string;
+          fetched_at?: string;
+        };
+        Update: Partial<MacroIndicatorRow>;
         Relationships: [];
       };
       chat_logs: {

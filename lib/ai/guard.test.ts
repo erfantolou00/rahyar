@@ -3,6 +3,7 @@ import { readCompletionText } from "@/lib/ai/gapgpt";
 import { fivePersianLines } from "@/lib/ai/lines";
 import { replyUsesKnownNumbers } from "@/lib/ai/numbers";
 import { chatSystemPrompt, type ChatFacts } from "@/lib/ai/prompt";
+import { readReplyWarnings, replyBody } from "@/lib/ai/reply-warnings";
 import { CHAT_POLICY, resetRateLimits, takeRateSlot } from "@/lib/ai/rate-limit";
 
 const facts: ChatFacts = {
@@ -56,5 +57,16 @@ describe("model response helpers", () => {
     expect(fivePersianLines("یک\nدو\nسه\nچهار\nپنج")).toEqual(["یک", "دو", "سه", "چهار", "پنج"]);
     expect(fivePersianLines("1. یک\n2. دو\n3. سه\n4. چهار\n5. پنج")).toEqual(["یک", "دو", "سه", "چهار", "پنج"]);
     expect(fivePersianLines("یک\nدو")).toBeNull();
+  });
+
+  it("keeps a rejected model reply and names the broken rule", () => {
+    const legacy = {
+      error: "rejected",
+      raw: "ارزش حدود ۹۹۹ است",
+    };
+    expect(readReplyWarnings(legacy)).toEqual(["numbers"]);
+    expect(replyBody("پاسخ پذیرفته نشد", legacy)).toBe("ارزش حدود ۹۹۹ است");
+    expect(readReplyWarnings({ error: "lines", warnings: ["numbers"] })).toEqual(["numbers", "lines"]);
+    expect(replyBody("متن مدل", { warnings: ["numbers"] })).toBe("متن مدل");
   });
 });

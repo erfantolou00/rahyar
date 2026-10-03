@@ -46,6 +46,7 @@ export function weeklyContentJson(content: WeeklyReportContent): Json {
       gap_percent: weight.gap_percent,
     })),
     commentary: content.commentary,
+    commentary_warnings: content.commentary_warnings,
   };
 }
 

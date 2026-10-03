@@ -1,3 +1,4 @@
+import type { ReplyWarning } from "@/lib/ai/reply-warnings";
 import { toNumber } from "@/lib/finance/format";
 import type { Alert, AllocationStatus, AssetType, PortfolioSnapshot } from "@/lib/finance/types";
 
@@ -62,6 +63,7 @@ export type WeeklyReportContent = {
   weights: WeeklyWeight[];
   /** Null until phase 6 calls withCommentary. The summary never reads this field. */
   commentary: string | null;
+  commentary_warnings: ReplyWarning[];
 };
 
 function weekChange(current: number, previous: number | null): { value: number | null; percent: number | null } {
@@ -185,5 +187,6 @@ export function buildWeeklyReport(input: {
       gap_percent: bandGap(row.weight, row.minPercent, row.maxPercent, row.status),
     })),
     commentary: null,
+    commentary_warnings: [],
   };
 }

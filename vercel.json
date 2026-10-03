@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/weekly-report",
       "schedule": "30 16 * * 5"
+    },
+    {
+      "path": "/api/cron/macro",
+      "schedule": "0 13 * * 1"
     }
   ]
 }

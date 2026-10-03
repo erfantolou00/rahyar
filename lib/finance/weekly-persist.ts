@@ -1,3 +1,4 @@
+import { replyWarningCodes, type ReplyWarning } from "@/lib/ai/reply-warnings";
 import { assetTypes, isAlertKind, type AllocationStatus, type AssetType } from "@/lib/finance/types";
 import {
   WEEKLY_REPORT_SCHEMA,
@@ -29,12 +30,16 @@ export function baselineWeekly(
  * Phase 6 entry point. Copies the numeric report and sets `commentary`.
  * A blank string leaves the report unchanged. Do not recalculate the numbers here.
  */
-export function withCommentary(content: WeeklyReportContent, text: string): WeeklyReportContent {
+export function withCommentary(
+  content: WeeklyReportContent,
+  text: string,
+  warnings: ReplyWarning[] = [],
+): WeeklyReportContent {
   const commentary = text.trim().slice(0, 4000);
   if (!commentary) return content;
   const clone = parseWeeklyContent(structuredClone(content));
   if (!clone) return content;
-  return { ...clone, commentary };
+  return { ...clone, commentary, commentary_warnings: warnings };
 }
 
 function readNumber(value: unknown): number | undefined {
@@ -149,6 +154,9 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
   }
 
   const commentary = typeof row.commentary === "string" && row.commentary.trim() ? row.commentary.trim() : null;
+  const commentaryWarnings = Array.isArray(row.commentary_warnings)
+    ? row.commentary_warnings.filter((item): item is ReplyWarning => replyWarningCodes.some((code) => code === item))
+    : [];
   return {
     schema: WEEKLY_REPORT_SCHEMA,
     period: { from, to },
@@ -162,5 +170,6 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
     alerts,
     weights,
     commentary,
+    commentary_warnings: commentaryWarnings,
   };
 }

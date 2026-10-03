@@ -3,6 +3,7 @@ import { loadChatFacts } from "@/lib/ai/facts";
 import { completeChat, publicModelDetail } from "@/lib/ai/gapgpt";
 import type { ChatMessage } from "@/lib/ai/messages";
 import { replyUsesKnownNumbers } from "@/lib/ai/numbers";
+import type { ReplyWarning } from "@/lib/ai/reply-warnings";
 import { chatSystemPrompt } from "@/lib/ai/prompt";
 import { CHAT_POLICY, takeRateSlot } from "@/lib/ai/rate-limit";
 import { readRows } from "@/lib/finance/queries";
@@ -14,7 +15,11 @@ export const maxDuration = 30;
 
 const USER_MESSAGE_LIMIT = 2000;
 
-function json(body: { ok: boolean; stored: boolean; message: string }, status = 200, retryAfter?: number) {
+function json(
+  body: { ok: boolean; stored: boolean; message: string; warnings?: ReplyWarning[] },
+  status = 200,
+  retryAfter?: number,
+) {
   return NextResponse.json(body, {
     status,
     headers: retryAfter ? { "retry-after": String(retryAfter) } : undefined,
@@ -97,8 +102,8 @@ export async function POST(request: Request) {
   let assistant = "مدل الان پاسخ نداد. کمی بعد دوباره تلاش کنید.";
   let accepted = false;
   let errorCode: string | undefined;
-  let raw: string | undefined;
   let model: string | null = null;
+  const warnings: ReplyWarning[] = [];
 
   if (!completion.ok) {
     errorCode = completion.reason;
@@ -111,15 +116,11 @@ export async function POST(request: Request) {
     } else {
       assistant = `مدل الان پاسخ نداد. کمی بعد دوباره تلاش کنید.${publicModelDetail(completion.detail)}`;
     }
-  } else if (!replyUsesKnownNumbers(completion.text, [seen, message])) {
-    errorCode = "rejected";
-    raw = completion.text.slice(0, 2000);
-    model = completion.model;
-    assistant = "پاسخ پذیرفته نشد چون عددی خارج از داده‌های محاسبه‌شده داشت.";
   } else {
-    accepted = true;
     model = completion.model;
     assistant = completion.text;
+    if (!replyUsesKnownNumbers(completion.text, [seen, message])) warnings.push("numbers");
+    accepted = warnings.length === 0;
   }
 
   const saved = await session.supabase.from("chat_logs").insert({
@@ -130,8 +131,8 @@ export async function POST(request: Request) {
       surface: "chat",
       model,
       seen,
+      ...(warnings.length > 0 ? { warnings } : {}),
       ...(errorCode ? { error: errorCode } : {}),
-      ...(raw ? { raw } : {}),
     } as Json,
   });
   if (saved.error) {
@@ -139,6 +140,9 @@ export async function POST(request: Request) {
     return json({ ok: false, stored: true, message: "پاسخ ذخیره نشد. دوباره تلاش کنید." }, 500);
   }
 
+  if (warnings.length > 0) {
+    return json({ ok: true, stored: true, message: assistant, warnings });
+  }
   const status = accepted
     ? 200
     : errorCode === "missing_key" || errorCode === "invalid_key"

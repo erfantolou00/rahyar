@@ -134,6 +134,15 @@ export type PushSubscriptionRecord = {
   created_at: string;
 };
 
+export type MacroIndicatorRow = {
+  id: string;
+  indicator: string;
+  value: Numeric;
+  date: string;
+  source: string;
+  fetched_at: string;
+};
+
 export type StockFundamentals = {
   id: string;
   user_id: string;

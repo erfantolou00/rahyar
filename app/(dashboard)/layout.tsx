@@ -1,5 +1,5 @@
 import { AppBadge } from "@/components/app-badge";
-import { DashboardNav } from "@/components/dashboard-nav";
+import { DashboardFrame } from "@/components/dashboard-nav";
 import { RememberPrices } from "@/components/remember-prices";
 import { readRows } from "@/lib/finance/queries";
 import type { Alert } from "@/lib/finance/types";
@@ -25,11 +25,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : null;
 
   return (
-    <div className="min-h-full">
+    <>
       <AppBadge count={activeCount} />
       {prices.ok ? <RememberPrices rows={latestOfflinePrices(prices.data)} /> : null}
-      <DashboardNav email={session.email} />
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-    </div>
+      <DashboardFrame email={session.email}>{children}</DashboardFrame>
+    </>
   );
 }

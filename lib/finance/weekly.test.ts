@@ -167,6 +167,8 @@ describe("weekly baseline and commentary", () => {
     expect(withText.commentary).toBe("تحلیل مدل");
     expect(withCommentary(report, "   ")).toBe(report);
     expect(parseWeeklyContent(weeklyContentJson(withText))?.commentary).toBe("تحلیل مدل");
+    const warned = withCommentary(report, "سه خط", ["lines", "numbers"]);
+    expect(parseWeeklyContent(weeklyContentJson(warned))?.commentary_warnings).toEqual(["lines", "numbers"]);
     expect(formatWeeklySummary(withText)).not.toContain("تحلیل مدل");
     expect(formatWeeklySummary(withText)).toContain("طلا");
   });

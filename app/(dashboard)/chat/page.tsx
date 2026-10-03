@@ -36,7 +36,7 @@ export default async function ChatPage() {
     : [];
 
   return (
-    <div className="-mx-4 -my-8 flex h-[calc(100dvh-9rem)] min-h-[28rem] flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {!logs.ok ? (
         <div className="p-4">
           <SchemaNotice missing={logs.missingSchema} />

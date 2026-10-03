@@ -3,6 +3,7 @@ import { fivePersianLines } from "@/lib/ai/lines";
 import type { ChatMessage } from "@/lib/ai/messages";
 import { replyUsesKnownNumbers } from "@/lib/ai/numbers";
 import { interpretSystemPrompt } from "@/lib/ai/prompt";
+import type { ReplyWarning } from "@/lib/ai/reply-warnings";
 import { INTERPRET_POLICY, takeRateSlot } from "@/lib/ai/rate-limit";
 import type { FinanceClient } from "@/lib/finance/queries";
 import type { Json, Report } from "@/lib/finance/types";
@@ -20,7 +21,7 @@ export type InterpretCode =
   | "invalid";
 
 export type InterpretResult =
-  | { ok: true; commentary: string }
+  | { ok: true; commentary: string; warnings: ReplyWarning[] }
   | { ok: false; code: InterpretCode; message: string; stored: boolean };
 
 const failureText: Record<InterpretCode, string> = {
@@ -96,43 +97,23 @@ export async function interpretWeeklyReport(
     return { ok: false, code: completion.reason, message, stored };
   }
 
-  const lines = fivePersianLines(completion.text);
-  if (!lines) {
-    const stored = await insertAssistant(supabase, userId, failureText.lines, {
-      surface: "weekly_interpret",
-      model: completion.model,
-      error: "lines",
-      reportId,
-      seen: facts,
-      raw: completion.text.slice(0, 2000),
-    });
-    return { ok: false, code: "lines", message: failureText.lines, stored };
-  }
+  const text = completion.text.trim().slice(0, 4000);
+  const warnings: ReplyWarning[] = [];
+  if (!fivePersianLines(text)) warnings.push("lines");
+  if (!replyUsesKnownNumbers(text, [facts])) warnings.push("numbers");
 
-  const commentary = lines.join("\n");
-  if (!replyUsesKnownNumbers(commentary, [facts])) {
-    const stored = await insertAssistant(supabase, userId, failureText.rejected, {
-      surface: "weekly_interpret",
-      model: completion.model,
-      error: "rejected",
-      reportId,
-      seen: facts,
-      raw: completion.text.slice(0, 2000),
-    });
-    return { ok: false, code: "rejected", message: failureText.rejected, stored };
-  }
-
-  const stored = await insertAssistant(supabase, userId, commentary, {
+  const stored = await insertAssistant(supabase, userId, text, {
     surface: "weekly_interpret",
     model: completion.model,
     reportId,
     seen: facts,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
   if (!stored) return { ok: false, code: "save", message: failureText.save, stored: false };
 
   const updated = await supabase
     .from("reports")
-    .update({ content: weeklyContentJson(withCommentary(facts, commentary)) })
+    .update({ content: weeklyContentJson(withCommentary(facts, text, warnings)) })
     .eq("id", reportId)
     .eq("user_id", userId);
   if (updated.error) {
@@ -140,7 +121,7 @@ export async function interpretWeeklyReport(
     return { ok: false, code: "save", message: failureText.save, stored: true };
   }
 
-  return { ok: true, commentary };
+  return { ok: true, commentary: text, warnings };
 }
 
 async function insertAssistant(

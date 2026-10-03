@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/chrome";
+import { ReplyWarnings } from "@/components/reply-warnings";
 import { formatMoney, formatNumber, formatQuantity, formatTimestamp } from "@/lib/finance/format";
 import { alertKindLabels, assetTypeLabels } from "@/lib/finance/labels";
 import {
@@ -115,6 +116,7 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
         <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
           <h2 className="mb-4 text-base font-semibold">توضیح تکمیلی</h2>
           <p className="whitespace-pre-wrap text-sm leading-7">{content.commentary}</p>
+          <ReplyWarnings warnings={content.commentary_warnings} />
         </section>
       ) : null}
     </div>
