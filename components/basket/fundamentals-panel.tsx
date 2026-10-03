@@ -1,6 +1,6 @@
 import { SchemaNotice } from "@/components/chrome";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PresentedFundamental } from "@/lib/finance/basket-view";
+import type { PresentedFundamental, ValueTone } from "@/lib/finance/basket-view";
 
 export function FundamentalsPanel({
   rows,
@@ -39,6 +39,27 @@ export function FundamentalsPanel({
               <Metric label="ROE" value={row.roe} />
               <Metric label="حاشیه سود" value={row.profitMargin} />
             </dl>
+            {row.report ? (
+              <div className="grid gap-3">
+                <dl className="grid gap-3 sm:grid-cols-4">
+                  <ReturnMetric label="روزانه" value={row.report.daily} tone={row.report.dailyTone} hint={row.report.dailyChange} />
+                  <ReturnMetric label="ماهانه" value={row.report.month} tone={row.report.monthTone} />
+                  <ReturnMetric label="سه‌ماهه" value={row.report.quarter} tone={row.report.quarterTone} />
+                  <ReturnMetric label="سالانه" value={row.report.year} tone={row.report.yearTone} />
+                </dl>
+                {row.report.extras.length > 0 ? (
+                  <dl className="grid gap-2 sm:grid-cols-2">
+                    {row.report.extras.map((item) => (
+                      <div key={item.label} className="flex items-baseline justify-between gap-3 text-sm">
+                        <dt className="text-muted-foreground">{item.label}</dt>
+                        <dd className="numeric">{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+                <p className="text-xs text-muted-foreground">{row.report.sourceLabel}</p>
+              </div>
+            ) : null}
             {row.letter ? (
               <p className="text-sm leading-7 text-muted-foreground">
                 {row.letter}
@@ -74,6 +95,27 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="numeric mt-1 text-lg font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+function ReturnMetric({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone: ValueTone;
+  hint?: string | null;
+}) {
+  const color = tone === "up" ? "text-ok" : tone === "down" ? "text-danger" : "";
+  return (
+    <div>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className={`numeric mt-1 text-lg font-semibold ${color}`}>{value}</dd>
+      {hint ? <p className="numeric text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

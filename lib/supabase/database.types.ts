@@ -182,6 +182,7 @@ export type Database = {
           adjusted?: boolean;
           source: string;
           shape_error?: string | null;
+          market_report?: Json;
           fetched_at?: string;
         };
         Update: Partial<StockFundamentals>;

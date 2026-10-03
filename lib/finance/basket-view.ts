@@ -1,4 +1,5 @@
 import { readSalesTrend } from "@/lib/finance/codal/parse";
+import { readMarketReport } from "@/lib/finance/prices/market-report";
 import { priceAge } from "@/lib/finance/prices/age";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { formatDollar, formatMoney, formatNumber, formatPercent, formatQuantity, plainNumber, toNumber } from "@/lib/finance/format";
@@ -33,6 +34,20 @@ const markTitles: Record<LiveSymbol, string> = {
   BTC: "بیت‌کوین",
 };
 
+export type PresentedReport = {
+  daily: string;
+  month: string;
+  quarter: string;
+  year: string;
+  dailyTone: ValueTone;
+  monthTone: ValueTone;
+  quarterTone: ValueTone;
+  yearTone: ValueTone;
+  dailyChange: string | null;
+  extras: { label: string; value: string }[];
+  sourceLabel: string;
+};
+
 export type PresentedFundamental = {
   symbol: string;
   pe: string;
@@ -45,6 +60,7 @@ export type PresentedFundamental = {
   adjusted: boolean;
   shapeError: string | null;
   fetchedLabel: string;
+  report: PresentedReport | null;
 };
 
 export type PresentedBasket = {
@@ -84,6 +100,56 @@ function metric(value: Numeric | null | undefined, digits = 2): string {
   return formatNumber(parsed, digits);
 }
 
+function signedPercent(value: number | null): string {
+  if (value == null) return "—";
+  const text = formatPercent(value);
+  return value > 0 ? `+${text}` : text;
+}
+
+function reportSourceLabel(source: string): string {
+  const history = source.includes("tsetmc");
+  const rahavard = source.includes("rahavard");
+  if (history && rahavard) return "بازده از قیمت‌های پایانی؛ جزئیات از رهاورد ۳۶۵";
+  if (history) return "بازده از قیمت‌های پایانی بورس";
+  if (rahavard) return "از رهاورد ۳۶۵";
+  return "گزارش قیمت هنوز کامل نشده است";
+}
+
+function presentReport(value: StockFundamentals["market_report"]): PresentedReport | null {
+  const report = readMarketReport(value);
+  if (!report) return null;
+  const extras = [
+    report.industry ? { label: "صنعت", value: report.industry } : null,
+    report.state ? { label: "وضعیت", value: report.state } : null,
+    report.marketCap != null ? { label: "ارزش بازار", value: formatMoney(report.marketCap) } : null,
+    report.freeFloatPercent != null ? { label: "شناوری", value: formatPercent(report.freeFloatPercent) } : null,
+    report.pb != null ? { label: "P/B", value: formatNumber(report.pb, 2) } : null,
+    report.dps != null ? { label: "سود نقدی", value: formatNumber(report.dps, 0) } : null,
+    report.volume != null ? { label: "حجم", value: formatNumber(report.volume, 0) } : null,
+    report.tradeValue != null ? { label: "ارزش معاملات", value: formatMoney(report.tradeValue) } : null,
+  ].filter((item): item is { label: string; value: string } => item != null);
+  const hasFigure =
+    report.lastPrice != null ||
+    report.dailyPercent != null ||
+    report.monthPercent != null ||
+    report.quarterPercent != null ||
+    report.yearPercent != null;
+  if (!hasFigure && extras.length === 0) return null;
+  return {
+    daily: signedPercent(report.dailyPercent),
+    month: signedPercent(report.monthPercent),
+    quarter: signedPercent(report.quarterPercent),
+    year: signedPercent(report.yearPercent),
+    dailyTone: toneOf(report.dailyPercent),
+    monthTone: toneOf(report.monthPercent),
+    quarterTone: toneOf(report.quarterPercent),
+    yearTone: toneOf(report.yearPercent),
+    dailyChange: report.dailyChange == null ? null : formatMoney(report.dailyChange),
+    extras,
+    sourceLabel: reportSourceLabel(report.source),
+  };
+}
+
 export function presentFundamentals(
   symbols: string[],
   rows: StockFundamentals[],
@@ -104,6 +170,7 @@ export function presentFundamentals(
         adjusted: false,
         shapeError: null,
         fetchedLabel: "هنوز خوانده نشده",
+        report: null,
       };
     }
     const age = priceAge(row.fetched_at, now);
@@ -122,6 +189,7 @@ export function presentFundamentals(
       adjusted: row.adjusted,
       shapeError: row.shape_error,
       fetchedLabel: age.label,
+      report: presentReport(row.market_report),
     };
   });
 }

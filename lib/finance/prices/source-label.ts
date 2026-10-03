@@ -52,6 +52,13 @@ export function describeSource(source: string): SourceLabel {
     };
   }
 
+  if (trimmed.startsWith("rahavard")) {
+    return {
+      short: "رهاورد",
+      full: "آخرین قیمت در رهاورد ۳۶۵",
+    };
+  }
+
   if (trimmed.startsWith("tsetmc")) {
     return {
       short: "بورس",

@@ -78,6 +78,7 @@ describe("describeSource", () => {
       full: "قیمت واردشده به‌صورت دستی",
     });
     expect(describeSource("tsetmc-cdn:last").short).toBe("بورس");
+    expect(describeSource("rahavard:last").short).toBe("رهاورد");
   });
 });
 

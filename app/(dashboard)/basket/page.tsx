@@ -5,6 +5,7 @@ import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { ensureStockFundamentals } from "@/lib/finance/codal/sync";
 import { presentBasket, presentFundamentals, presentMarks } from "@/lib/finance/basket-view";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
+import { ensureMarketReports } from "@/lib/finance/prices/market-report";
 import { loadBasket, loadLivePrices, loadStockFundamentals } from "@/lib/finance/queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,7 +19,7 @@ export default async function BasketPage({
   const params = await searchParams;
   const supabase = await createClient();
   await ensureLivePrices(supabase);
-  await ensureStockFundamentals(supabase);
+  await Promise.all([ensureStockFundamentals(supabase), ensureMarketReports(supabase)]);
   const [basket, livePrices, fundamentals] = await Promise.all([
     loadBasket(supabase),
     loadLivePrices(supabase),

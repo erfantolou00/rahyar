@@ -10,6 +10,7 @@ const facts: ChatFacts = {
   activeAlertCount: 0,
   activeAlerts: [],
   latestWeeklyReport: null,
+  stocks: [],
 };
 
 describe("replyUsesKnownNumbers", () => {

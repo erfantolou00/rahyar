@@ -33,6 +33,31 @@ export type ChatFacts = {
     isActive: boolean;
   }>;
   latestWeeklyReport: WeeklyReportContent | null;
+  stocks: ChatStockFact[];
+};
+
+export type ChatStockFact = {
+  symbol: string;
+  price: number | null;
+  pe: number | null;
+  eps: number | null;
+  roe: number | null;
+  profitMargin: number | null;
+  adjusted: boolean;
+  latestTitle: string | null;
+  lastPrice: number | null;
+  dailyChange: number | null;
+  dailyPercent: number | null;
+  monthPercent: number | null;
+  quarterPercent: number | null;
+  yearPercent: number | null;
+  volume: number | null;
+  tradeValue: number | null;
+  marketCap: number | null;
+  freeFloatPercent: number | null;
+  pb: number | null;
+  dps: number | null;
+  industry: string | null;
 };
 
 const SHARED_RULES = [
@@ -49,6 +74,7 @@ export function chatSystemPrompt(facts: ChatFacts): string {
     "تو دستیار مالی رهیار هستی.",
     ...SHARED_RULES,
     "اگر سابقهٔ گفتگو با JSON فرق داشت، JSON معتبر است.",
+    "مشخصات و بازده سهام در stocks است. dailyPercent و monthPercent و quarterPercent و yearPercent درصد تغییر قیمت‌اند. lastPrice آخرین قیمت، dailyChange تغییر روزانه به ریال، و marketCap ارزش بازار به ریال است.",
     "داده:",
     JSON.stringify(facts),
   ].join("\n");

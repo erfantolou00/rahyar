@@ -1,13 +1,10 @@
+import { fetchRahavardQuote } from "@/lib/finance/prices/rahavard";
 import { fetchText } from "@/lib/finance/prices/tgju";
 import { fetchFirst } from "@/lib/finance/prices/fetch-with-fallback";
 import { normalizeSymbol } from "@/lib/finance/prices/match";
+import { MarketShapeError } from "@/lib/finance/prices/shape-error";
 
-export class MarketShapeError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "MarketShapeError";
-  }
-}
+export { MarketShapeError };
 
 export type ListedInstrument = {
   symbol: string;
@@ -140,6 +137,7 @@ export async function fetchListedQuote(symbol: string): Promise<ListedQuote | nu
     [
       { name: "tsetmc-cdn:last", run: () => cdnQuote(symbol) },
       { name: "tsetmc-legacy:last", run: () => legacyQuote(symbol) },
+      { name: "rahavard:last", run: () => fetchRahavardQuote(symbol) },
     ],
     (quote) => Number.isFinite(quote.price) && quote.price > 0,
     "prices",

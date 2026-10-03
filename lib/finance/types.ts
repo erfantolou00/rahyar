@@ -149,6 +149,7 @@ export type StockFundamentals = {
   adjusted: boolean;
   source: string;
   shape_error: string | null;
+  market_report: Json;
   fetched_at: string;
 };
 
