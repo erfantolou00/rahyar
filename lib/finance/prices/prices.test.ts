@@ -3,6 +3,15 @@ import { priceAge } from "@/lib/finance/prices/age";
 import { fetchWithFallback } from "@/lib/finance/prices/fetch-with-fallback";
 import { instrumentForAsset, instrumentForSymbol } from "@/lib/finance/prices/match";
 import { describeSource } from "@/lib/finance/prices/source-label";
+import {
+  MarketShapeError,
+  matchListedSymbol,
+  parseClosingPrice,
+  parseInstrumentEps,
+  parseLegacyLastPrice,
+  parseLegacySearch,
+  parseTsetmcSearch,
+} from "@/lib/finance/prices/listed";
 
 describe("fetchWithFallback", () => {
   it("uses the second source when the first fails", async () => {
@@ -68,5 +77,31 @@ describe("describeSource", () => {
       short: "دستی",
       full: "قیمت واردشده به‌صورت دستی",
     });
+    expect(describeSource("tsetmc-cdn:last").short).toBe("بورس");
+  });
+});
+
+describe("listed market parsers", () => {
+  it("matches the ticker exactly and reads the last trade", () => {
+    const rows = parseTsetmcSearch({
+      instrumentSearch: [
+        { lVal18AFC: "فولاد", insCode: "46348559193224090" },
+        { lVal18AFC: "توسكا", insCode: "56871139881800017" },
+      ],
+    });
+    expect(matchListedSymbol(rows, "فولاد")?.insCode).toBe("46348559193224090");
+    expect(matchListedSymbol(rows, "مبارکه")).toBeNull();
+    expect(parseClosingPrice({ closingPriceInfo: { pDrCotVal: 3710, pClosing: 3700 } })).toBe(3710);
+    expect(parseInstrumentEps({ instrumentInfo: { eps: { estimatedEPS: "518", epsValue: null } } })).toBe(518);
+  });
+
+  it("reads the legacy text feed and rejects a changed payload", () => {
+    expect(parseLegacySearch("فولاد,فولاد مبارکه,46348559193224090,1;عیار,صندوق عیار,99999,1")).toEqual([
+      { symbol: "فولاد", insCode: "46348559193224090" },
+      { symbol: "عیار", insCode: "99999" },
+    ]);
+    expect(parseLegacyLastPrice("12:30:00,A ,3710,3700,3720,3620")).toBe(3710);
+    expect(() => parseClosingPrice({ price: 10 })).toThrow(MarketShapeError);
+    expect(() => parseLegacySearch("<html>moved</html>")).toThrow(MarketShapeError);
   });
 });

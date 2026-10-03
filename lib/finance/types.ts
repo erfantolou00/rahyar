@@ -75,7 +75,7 @@ export type Allocation = {
   valid_to: string | null;
 };
 
-export const alertKinds = ["rule", "allocation_deviation"] as const;
+export const alertKinds = ["rule", "allocation_deviation", "codal_notice"] as const;
 
 export type AlertKind = (typeof alertKinds)[number];
 
@@ -132,6 +132,24 @@ export type PushSubscriptionRecord = {
   p256dh: string;
   auth: string;
   created_at: string;
+};
+
+export type StockFundamentals = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  pe: Numeric | null;
+  eps: Numeric | null;
+  roe: Numeric | null;
+  profit_margin: Numeric | null;
+  sales_trend: Json;
+  latest_tracing_no: string | null;
+  latest_title: string | null;
+  published_label: string | null;
+  adjusted: boolean;
+  source: string;
+  shape_error: string | null;
+  fetched_at: string;
 };
 
 export type Report = {

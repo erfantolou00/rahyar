@@ -16,13 +16,20 @@ function priceKey(type: string, symbol: string): string {
   return `${type}:${symbol.trim().toUpperCase()}`;
 }
 
+function listedOnExchange(type: AssetType): boolean {
+  return type === "stock" || type === "fund";
+}
+
 function marketUnitPrice(asset: Asset, quotes: Map<string, Price>, prices: Price[]): number | null {
   const usdRial = dollarRate(prices);
   const unit: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
+  const direct = quotes.get(priceKey(asset.type, asset.symbol));
+  if (listedOnExchange(asset.type) && direct && toNumber(direct.price) > 0) {
+    return toNumber(direct.price);
+  }
   if (asset.manual_value != null) {
     return amountInRial(toNumber(asset.manual_value), unit, usdRial);
   }
-  const direct = quotes.get(priceKey(asset.type, asset.symbol));
   const instrument = instrumentForAsset(asset.type, asset.symbol);
   if (!direct && instrument) {
     const live = latestQuote(prices, instrument);

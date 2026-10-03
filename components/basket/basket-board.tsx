@@ -17,7 +17,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
 import { SortableTable, type SortableColumn } from "@/components/sortable-table";
+import type { PresentedFundamental } from "@/lib/finance/basket-view";
 
 const toneClass: Record<ValueTone, string> = {
   up: "text-ok",
@@ -33,6 +35,8 @@ export function BasketBoard({
   totalAbsolute,
   totalPercent,
   totalTone,
+  fundamentals,
+  fundamentalsSchema,
 }: {
   marks: PresentedMark[];
   rows: PresentedRow[];
@@ -40,9 +44,12 @@ export function BasketBoard({
   totalAbsolute: string;
   totalPercent: string;
   totalTone: ValueTone;
+  fundamentals: PresentedFundamental[];
+  fundamentalsSchema: boolean | null;
 }) {
   const [editing, setEditing] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
+  const [tab, setTab] = useState<"holdings" | "fundamentals">("holdings");
 
   return (
     <div className="grid gap-4">
@@ -65,6 +72,29 @@ export function BasketBoard({
         <Summary label="بازده" value={totalPercent} tone={totalTone} />
       </div>
 
+      <div className="flex gap-2">
+        <button
+          type="button"
+          aria-selected={tab === "holdings"}
+          onClick={() => setTab("holdings")}
+          className={tab === "holdings" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
+        >
+          سبد
+        </button>
+        <button
+          type="button"
+          aria-selected={tab === "fundamentals"}
+          onClick={() => setTab("fundamentals")}
+          className={tab === "fundamentals" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
+        >
+          بنیادی سهام
+        </button>
+      </div>
+
+      {tab === "fundamentals" ? (
+        <FundamentalsPanel rows={fundamentals} schemaIssue={fundamentalsSchema} />
+      ) : (
+        <>
       <div className="flex justify-start">
         <Dialog>
           <DialogTrigger render={<Button type="button" />}>افزودن دارایی</DialogTrigger>
@@ -72,7 +102,7 @@ export function BasketBoard({
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
               <DialogDescription>
-                مبنای قیمت را ریال یا دلار انتخاب کنید. تعداد می‌تواند اعشاری باشد، مثل ۰٫۰۰۰۳ بیت‌کوین. اگر قیمت فعلی خالی بماند، قیمت زنده استفاده می‌شود.
+                مبنای قیمت را ریال یا دلار انتخاب کنید. تعداد می‌تواند اعشاری باشد، مثل ۰٫۰۰۰۳ بیت‌کوین. برای سهام و صندوق بورسی آخرین قیمت معامله نشان داده می‌شود و برای بقیه، اگر قیمت فعلی خالی بماند قیمت زنده استفاده می‌شود.
               </DialogDescription>
             </DialogHeader>
             <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" />
@@ -149,6 +179,8 @@ export function BasketBoard({
               </li>
             ))}
           </ul>
+        </>
+      )}
         </>
       )}
 

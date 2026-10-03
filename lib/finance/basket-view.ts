@@ -1,11 +1,12 @@
+import { readSalesTrend } from "@/lib/finance/codal/parse";
 import { priceAge } from "@/lib/finance/prices/age";
 import { assetTypeLabels } from "@/lib/finance/labels";
-import { formatDollar, formatMoney, formatPercent, formatQuantity, plainNumber } from "@/lib/finance/format";
+import { formatDollar, formatMoney, formatNumber, formatPercent, formatQuantity, plainNumber, toNumber } from "@/lib/finance/format";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
 import type { AssetFormValues, BasketColumnKey } from "@/lib/finance/basket-fields";
 import type { BasketRow, BasketSummary } from "@/lib/finance/portfolio";
 import { latestQuote, liveSymbols, type LiveSymbol } from "@/lib/finance/prices/match";
-import type { Price } from "@/lib/finance/types";
+import type { Numeric, Price, StockFundamentals } from "@/lib/finance/types";
 
 export type ValueTone = "up" | "down" | "flat" | "empty";
 
@@ -30,6 +31,20 @@ const markTitles: Record<LiveSymbol, string> = {
   USD: "دلار",
   GOLD18: "طلای ۱۸ عیار",
   BTC: "بیت‌کوین",
+};
+
+export type PresentedFundamental = {
+  symbol: string;
+  pe: string;
+  eps: string;
+  roe: string;
+  profitMargin: string;
+  sales: { period: string; sales: string }[];
+  letter: string | null;
+  published: string | null;
+  adjusted: boolean;
+  shapeError: string | null;
+  fetchedLabel: string;
 };
 
 export type PresentedBasket = {
@@ -60,6 +75,55 @@ export function presentBasket(summary: BasketSummary): PresentedBasket {
     totalTone: toneOf(summary.totalAbsolute),
     rows: summary.rows.map((row) => presentRow(row)),
   };
+}
+
+function metric(value: Numeric | null | undefined, digits = 2): string {
+  if (value == null || value === "") return "—";
+  const parsed = toNumber(value);
+  if (!Number.isFinite(parsed)) return "—";
+  return formatNumber(parsed, digits);
+}
+
+export function presentFundamentals(
+  symbols: string[],
+  rows: StockFundamentals[],
+  now = Date.now(),
+): PresentedFundamental[] {
+  return symbols.map((symbol) => {
+    const row = rows.find((item) => item.symbol.trim() === symbol.trim());
+    if (!row) {
+      return {
+        symbol,
+        pe: "—",
+        eps: "—",
+        roe: "—",
+        profitMargin: "—",
+        sales: [],
+        letter: null,
+        published: null,
+        adjusted: false,
+        shapeError: null,
+        fetchedLabel: "هنوز خوانده نشده",
+      };
+    }
+    const age = priceAge(row.fetched_at, now);
+    return {
+      symbol,
+      pe: metric(row.pe),
+      eps: metric(row.eps, 0),
+      roe: row.roe == null ? "—" : formatPercent(toNumber(row.roe)),
+      profitMargin: row.profit_margin == null ? "—" : formatPercent(toNumber(row.profit_margin)),
+      sales: readSalesTrend(row.sales_trend).map((point) => ({
+        period: point.period,
+        sales: formatNumber(point.sales, 0),
+      })),
+      letter: row.latest_title,
+      published: row.published_label,
+      adjusted: row.adjusted,
+      shapeError: row.shape_error,
+      fetchedLabel: age.label,
+    };
+  });
 }
 
 export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[] {

@@ -35,9 +35,41 @@ export async function ensureLivePrices(supabase: FinanceClient): Promise<void> {
     const btc = newest.get("BTC");
     const btcStillInRial = btc != null && isBtcQuotedInRial(btc.price);
     const btcFromTether = btc != null && /^(nobitex|binance|coingecko):/.test(btc.source);
-    if (!fresh || btcStillInRial || (btc != null && !btcFromTether)) await refreshAllPrices(supabase);
+    const listedStale = await heldListedPricesStale(supabase);
+    if (!fresh || btcStillInRial || (btc != null && !btcFromTether) || listedStale) await refreshAllPrices(supabase);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[prices] ensure failed: ${message}`);
   }
+}
+
+async function heldListedPricesStale(supabase: FinanceClient): Promise<boolean> {
+  const assets = await supabase.from("assets").select("type,symbol").in("type", ["stock", "fund"]);
+  if (assets.error) {
+    console.error(`[prices] listed read failed: ${assets.error.message}`);
+    return false;
+  }
+  const holdings = (assets.data ?? []).filter((row) => row.symbol.trim());
+  if (holdings.length === 0) return false;
+
+  const prices = await supabase
+    .from("prices")
+    .select("asset_type,symbol,timestamp")
+    .in("asset_type", ["stock", "fund"])
+    .order("timestamp", { ascending: false });
+  if (prices.error) {
+    console.error(`[prices] listed prices failed: ${prices.error.message}`);
+    return false;
+  }
+
+  const newest = new Map<string, string>();
+  for (const row of prices.data ?? []) {
+    const key = `${row.asset_type}:${row.symbol.trim().toUpperCase()}`;
+    if (!newest.has(key)) newest.set(key, row.timestamp);
+  }
+
+  return holdings.some((asset) => {
+    const stamp = newest.get(`${asset.type}:${asset.symbol.trim().toUpperCase()}`);
+    return stamp == null || Date.now() - new Date(stamp).getTime() >= FRESH_FOR_MS;
+  });
 }

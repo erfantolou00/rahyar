@@ -14,6 +14,7 @@ import type {
   Price,
   PriceUnit,
   Report,
+  StockFundamentals,
   ReportType,
   Transaction,
   TransactionType,
@@ -162,6 +163,28 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Report>;
+        Relationships: [];
+      };
+      stock_fundamentals: {
+        Row: StockFundamentals;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          pe?: Numeric | null;
+          eps?: Numeric | null;
+          roe?: Numeric | null;
+          profit_margin?: Numeric | null;
+          sales_trend?: Json;
+          latest_tracing_no?: string | null;
+          latest_title?: string | null;
+          published_label?: string | null;
+          adjusted?: boolean;
+          source: string;
+          shape_error?: string | null;
+          fetched_at?: string;
+        };
+        Update: Partial<StockFundamentals>;
         Relationships: [];
       };
       chat_logs: {

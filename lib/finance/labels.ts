@@ -51,6 +51,7 @@ export const allocationStatusLabels: Record<AllocationStatus, string> = {
 export const alertKindLabels: Record<AlertKind, string> = {
   rule: "قاعدهٔ دستی",
   allocation_deviation: "انحراف تخصیص",
+  codal_notice: "گزارش کدال",
 };
 
 export const alertChannelLabels: Record<AlertChannel, string> = {

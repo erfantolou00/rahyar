@@ -52,6 +52,13 @@ export function describeSource(source: string): SourceLabel {
     };
   }
 
+  if (trimmed.startsWith("tsetmc")) {
+    return {
+      short: "بورس",
+      full: "آخرین قیمت معامله در سامانه معاملات بورس و فرابورس (TSETMC)",
+    };
+  }
+
   if (trimmed.startsWith("coingecko")) {
     return {
       short: "CoinGecko",

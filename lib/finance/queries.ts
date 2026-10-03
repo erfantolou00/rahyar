@@ -3,13 +3,14 @@ import { effectiveAllocationClass } from "@/lib/finance/allocation-class";
 import { toNumber } from "@/lib/finance/format";
 import { instrumentForAsset, latestQuote } from "@/lib/finance/prices/match";
 import { amountInRial, quoteInUnit, type PriceUnit } from "@/lib/finance/prices/unit";
-import { buildBasket, buildPortfolio } from "@/lib/finance/portfolio";
+import { buildBasket, buildPortfolio, latestPrices } from "@/lib/finance/portfolio";
 import type {
   Allocation,
   Asset,
   Json,
   PortfolioSnapshot,
   Price,
+  StockFundamentals,
 } from "@/lib/finance/types";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -72,6 +73,9 @@ export async function loadBasket(
   ]);
   if (!assets.ok) return assets;
   const priceRows = prices.ok ? prices.data : [];
+  const quotes = latestPrices(priceRows);
+  const usd = latestQuote(priceRows, "USD");
+  const usdRial = usd ? toNumber(usd.price) : null;
 
   return {
     ok: true,
@@ -79,13 +83,16 @@ export async function loadBasket(
       assets.data.map((asset) => {
         const instrument = instrumentForAsset(asset.type, asset.symbol);
         const unit: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
-        const usd = latestQuote(priceRows, "USD");
-        const usdRial = usd ? toNumber(usd.price) : null;
-        const live = instrument ? latestQuote(priceRows, instrument) : null;
+        const direct = quotes.get(`${asset.type}:${asset.symbol.trim().toUpperCase()}`) ?? null;
+        const live = direct == null && instrument ? latestQuote(priceRows, instrument) : null;
         const manual = asset.manual_value == null ? null : toNumber(asset.manual_value);
+        const directDisplay = direct ? listedInUnit(toNumber(direct.price), unit, usdRial) : null;
         const liveDisplay =
-          live && instrument ? quoteInUnit(instrument, toNumber(live.price), unit, usdRial) : null;
-        const displayCurrent = manual ?? liveDisplay;
+          directDisplay ??
+          (live && instrument ? quoteInUnit(instrument, toNumber(live.price), unit, usdRial) : null);
+        const exchange = asset.type === "stock" || asset.type === "fund";
+        const useLive = exchange ? liveDisplay != null : manual == null && liveDisplay != null;
+        const displayCurrent = useLive ? liveDisplay : manual ?? liveDisplay;
         const displayBuy = asset.avg_buy_price == null ? null : toNumber(asset.avg_buy_price);
         return {
           id: asset.id,
@@ -98,14 +105,29 @@ export async function loadBasket(
           manualPrice: manual,
           avgBuyPrice: amountInRial(displayBuy, unit, usdRial),
           currentPrice: amountInRial(displayCurrent, unit, usdRial),
-          quotedAt: manual == null ? live?.timestamp ?? null : null,
-          priceOrigin: manual != null ? "manual" : liveDisplay != null ? "live" : "none",
+          quotedAt: useLive ? direct?.timestamp ?? live?.timestamp ?? null : null,
+          priceOrigin: useLive ? "live" : manual != null ? "manual" : "none",
           allocationClass: effectiveAllocationClass(asset),
           allocationClassSource: asset.allocation_class_source === "manual" ? "manual" : "auto",
         };
       }),
     ),
   };
+}
+
+function listedInUnit(priceRial: number, unit: PriceUnit, usdRial: number | null): number | null {
+  if (!(priceRial > 0)) return null;
+  if (unit === "rial") return priceRial;
+  if (usdRial == null || !(usdRial > 0)) return null;
+  return priceRial / usdRial;
+}
+
+export async function loadStockFundamentals(
+  supabase: FinanceClient,
+): Promise<LoadResult<StockFundamentals[]>> {
+  return readRows<StockFundamentals>(
+    supabase.from("stock_fundamentals").select("*").order("symbol", { ascending: true }),
+  );
 }
 
 export async function loadLivePrices(supabase: FinanceClient): Promise<Price[]> {
