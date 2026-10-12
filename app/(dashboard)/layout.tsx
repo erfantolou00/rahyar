@@ -1,4 +1,5 @@
 import { AppBadge } from "@/components/app-badge";
+import { BackgroundPriceSync } from "@/components/background-price-sync";
 import { DashboardFrame } from "@/components/dashboard-nav";
 import { RememberPrices } from "@/components/remember-prices";
 import { readRows } from "@/lib/finance/queries";
@@ -27,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <>
       <AppBadge count={activeCount} />
+      <BackgroundPriceSync />
       {prices.ok ? <RememberPrices rows={latestOfflinePrices(prices.data)} /> : null}
       <DashboardFrame email={session.email}>{children}</DashboardFrame>
     </>

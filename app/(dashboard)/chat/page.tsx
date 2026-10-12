@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { SchemaNotice } from "@/components/chrome";
 import { ChatThread, type ChatTurn } from "@/components/chat-thread";
 import { readRows } from "@/lib/finance/queries";
-import { ensureMarketReports } from "@/lib/finance/prices/market-report";
 import type { ChatLog, Json } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,7 +16,6 @@ function modelName(context: Json | null): string | null {
 
 export default async function ChatPage() {
   const supabase = await createClient();
-  await ensureMarketReports(supabase);
   const logs = await readRows<ChatLog>(
     supabase.from("chat_logs").select("*").order("timestamp", { ascending: true }).limit(100),
   );

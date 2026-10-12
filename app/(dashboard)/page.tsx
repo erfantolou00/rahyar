@@ -7,7 +7,6 @@ import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
 import { formatNumber, formatPercent, toNumber } from "@/lib/finance/format";
 import { presentMacro } from "@/lib/finance/macro/present";
-import { ensureLivePrices } from "@/lib/finance/prices/ensure";
 import { allocationStatusLabels, assetTypeLabels, transactionTypeLabels } from "@/lib/finance/labels";
 import { loadPortfolio, readRows } from "@/lib/finance/queries";
 import type { Alert, Allocation, MacroIndicatorRow, Transaction } from "@/lib/finance/types";
@@ -17,7 +16,6 @@ export const metadata: Metadata = { title: "نمای کلی" };
 
 export default async function OverviewPage() {
   const supabase = await createClient();
-  await ensureLivePrices(supabase);
   const [portfolio, transactions, alerts, allocationRows, macroRows] = await Promise.all([
     loadPortfolio(supabase),
     readRows<Transaction>(
@@ -53,7 +51,7 @@ export default async function OverviewPage() {
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، با باز کردن صفحه تازه می‌شوند."
+        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، بعد از نمایش صفحه در پس‌زمینه تازه می‌شوند."
         action={<RefreshPricesButton returnTo="/" />}
       />
       <AllocationDeviationPanel

@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
+import { LineChart } from "lucide-react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
 import { AssetFields } from "@/components/basket/asset-fields";
+import { FundamentalsLoader } from "@/components/basket/fundamentals-loader";
+import { HoldingGrowthDialog } from "@/components/holding-growth-dialog";
 import { basketColumns, emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
 import type { PresentedMark, PresentedRow, ValueTone } from "@/lib/finance/basket-view";
 import { Button } from "@/components/ui/button";
@@ -17,9 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
 import { SortableTable, type SortableColumn } from "@/components/sortable-table";
-import type { PresentedFundamental } from "@/lib/finance/basket-view";
 
 const toneClass: Record<ValueTone, string> = {
   up: "text-ok",
@@ -35,8 +36,6 @@ export function BasketBoard({
   totalAbsolute,
   totalPercent,
   totalTone,
-  fundamentals,
-  fundamentalsSchema,
 }: {
   marks: PresentedMark[];
   rows: PresentedRow[];
@@ -44,11 +43,10 @@ export function BasketBoard({
   totalAbsolute: string;
   totalPercent: string;
   totalTone: ValueTone;
-  fundamentals: PresentedFundamental[];
-  fundamentalsSchema: boolean | null;
 }) {
   const [editing, setEditing] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
+  const [growth, setGrowth] = useState<PresentedRow | null>(null);
   const [tab, setTab] = useState<"holdings" | "fundamentals">("holdings");
 
   return (
@@ -91,9 +89,11 @@ export function BasketBoard({
         </button>
       </div>
 
-      {tab === "fundamentals" ? (
-        <FundamentalsPanel rows={fundamentals} schemaIssue={fundamentalsSchema} />
-      ) : (
+      <div className={tab === "fundamentals" ? "grid gap-4" : "hidden"}>
+        <FundamentalsLoader enabled={tab === "fundamentals"} />
+      </div>
+
+      {tab === "holdings" ? (
         <>
       <div className="flex justify-start">
         <Dialog>
@@ -128,13 +128,17 @@ export function BasketBoard({
                 sortValue: (row) => row.sort[column.key],
                 render: (row) => (
                   <div>
-                    <span
-                      className={`${column.numeric ? "numeric" : ""} ${
-                        column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""
-                      }`}
-                    >
-                      {row.cells[column.key]}
-                    </span>
+                    {column.key === "name" ? (
+                      <HoldingName row={row} onOpen={setGrowth} />
+                    ) : (
+                      <span
+                        className={`${column.numeric ? "numeric" : ""} ${
+                          column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""
+                        }`}
+                      >
+                        {row.cells[column.key]}
+                      </span>
+                    )}
                     {column.key === "currentPrice" && row.updatedLabel ? (
                       <p className={row.stale ? "mt-1 text-xs text-warn" : "mt-1 text-xs text-muted-foreground"}>
                         {row.updatedLabel}
@@ -155,7 +159,9 @@ export function BasketBoard({
               <li key={row.id}>
                 <Card>
                   <CardHeader>
-                    <CardTitle>{row.cells.name}</CardTitle>
+                    <CardTitle>
+                      <HoldingName row={row} onOpen={setGrowth} />
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-2">
                     {basketColumns.slice(1).map((column) => (
@@ -182,7 +188,7 @@ export function BasketBoard({
         </>
       )}
         </>
-      )}
+      ) : null}
 
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="sm:max-w-md">
@@ -201,6 +207,8 @@ export function BasketBoard({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <HoldingGrowthDialog row={growth} onClose={() => setGrowth(null)} />
 
       <Dialog open={removing != null} onOpenChange={(open) => !open && setRemoving(null)}>
         <DialogContent className="sm:max-w-sm">
@@ -226,6 +234,20 @@ export function BasketBoard({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function HoldingName({ row, onOpen }: { row: PresentedRow; onOpen: (row: PresentedRow) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row)}
+      className="inline-flex items-center gap-1 text-start font-medium underline-offset-4 hover:underline"
+    >
+      <span>{row.cells.name}</span>
+      <LineChart className="size-3.5 text-muted-foreground" aria-hidden />
+      <span className="sr-only">نمودار رشد</span>
+    </button>
   );
 }
 

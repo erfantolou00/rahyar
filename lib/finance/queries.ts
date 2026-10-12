@@ -40,23 +40,74 @@ export async function readRows<T>(
   return { ok: true, data: data ?? [] };
 }
 
+const liveSymbols = ["USD", "GOLD18", "BTC"] as const;
+
+export async function loadLatestPrices(
+  supabase: FinanceClient,
+  assets: Pick<Asset, "type" | "symbol">[],
+): Promise<LoadResult<Price[]>> {
+  const assetKeys = new Map<string, { type: Asset["type"]; symbol: string }>();
+  for (const asset of assets) {
+    const symbol = asset.symbol.trim();
+    if (!symbol) continue;
+    assetKeys.set(`${asset.type}:${symbol.toUpperCase()}`, { type: asset.type, symbol });
+  }
+
+  const [assetResults, liveResults] = await Promise.all([
+    Promise.all(
+      [...assetKeys.values()].map((key) =>
+        supabase
+          .from("prices")
+          .select("*")
+          .eq("asset_type", key.type)
+          .eq("symbol", key.symbol)
+          .order("timestamp", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+    ),
+    Promise.all(
+      liveSymbols.map((symbol) =>
+        supabase
+          .from("prices")
+          .select("*")
+          .eq("symbol", symbol)
+          .order("timestamp", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ),
+    ),
+  ]);
+
+  const failed = [...assetResults, ...liveResults].find((result) => result.error);
+  if (failed?.error) {
+    console.error(failed.error);
+    return { ok: false, missingSchema: missingSchema(failed.error) };
+  }
+
+  const byId = new Map<string, Price>();
+  for (const result of [...assetResults, ...liveResults]) {
+    if (result.data) byId.set(result.data.id, result.data);
+  }
+  return { ok: true, data: [...byId.values()] };
+}
+
 export async function loadPortfolio(
   supabase: FinanceClient,
 ): Promise<LoadResult<PortfolioSnapshot>> {
-  const [assets, prices, allocations] = await Promise.all([
+  const [assets, allocations] = await Promise.all([
     readRows<Asset>(supabase.from("assets").select("*")),
-    readRows<Price>(supabase.from("prices").select("*").order("timestamp", { ascending: false })),
     readRows<Allocation>(
       supabase.from("allocations").select("*").order("valid_from", { ascending: false }),
     ),
   ]);
 
-  const firstFailure = [assets, prices, allocations].find((result) => !result.ok);
+  const firstFailure = [assets, allocations].find((result) => !result.ok);
   if (firstFailure && !firstFailure.ok) return firstFailure;
+  if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
 
-  if (!assets.ok || !prices.ok || !allocations.ok) {
-    return { ok: false, missingSchema: false };
-  }
+  const prices = await loadLatestPrices(supabase, assets.data);
+  if (!prices.ok) return prices;
 
   return {
     ok: true,
@@ -67,11 +118,9 @@ export async function loadPortfolio(
 export async function loadBasket(
   supabase: FinanceClient,
 ): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
-  const [assets, prices] = await Promise.all([
-    readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true })),
-    readRows<Price>(supabase.from("prices").select("*").order("timestamp", { ascending: false })),
-  ]);
+  const assets = await readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true }));
   if (!assets.ok) return assets;
+  const prices = await loadLatestPrices(supabase, assets.data);
   const priceRows = prices.ok ? prices.data : [];
   const quotes = latestPrices(priceRows);
   const usd = latestQuote(priceRows, "USD");
@@ -131,14 +180,18 @@ export async function loadStockFundamentals(
 }
 
 export async function loadLivePrices(supabase: FinanceClient): Promise<Price[]> {
-  const prices = await readRows<Price>(
-    supabase
-      .from("prices")
-      .select("*")
-      .in("symbol", ["USD", "GOLD18", "BTC"])
-      .order("timestamp", { ascending: false }),
+  const results = await Promise.all(
+    liveSymbols.map((symbol) =>
+      supabase
+        .from("prices")
+        .select("*")
+        .eq("symbol", symbol)
+        .order("timestamp", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ),
   );
-  return prices.ok ? prices.data : [];
+  return results.flatMap((result) => (result.error || !result.data ? [] : [result.data]));
 }
 
 export function snapshotJson(snapshot: PortfolioSnapshot): Json {
