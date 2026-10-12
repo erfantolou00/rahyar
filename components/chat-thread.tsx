@@ -22,18 +22,28 @@ const suggestions = [
   { title: "هشدارهای فعال", text: "کدام هشدار فعال است؟" },
 ];
 
+function localTurnId(kind: "user" | "reply"): string {
+  return `local-${kind}-${Date.now()}`;
+}
+
+function nowStamp(): string {
+  return new Date().toISOString();
+}
+
 export function ChatThread({ initial }: { initial: ChatTurn[] }) {
   const router = useRouter();
   const [turns, setTurns] = useState(initial);
+  const [synced, setSynced] = useState(initial);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  if (synced !== initial) {
+    setSynced(initial);
     setTurns(initial);
-  }, [initial]);
+  }
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
@@ -49,10 +59,10 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || pending) return;
-    const localId = `local-${Date.now()}`;
+    const localId = localTurnId("user");
     setTurns((current) => [
       ...current,
-      { id: localId, role: "user", message: trimmed, timestamp: new Date().toISOString(), model: null, context: null },
+      { id: localId, role: "user", message: trimmed, timestamp: nowStamp(), model: null, context: null },
     ]);
     setMessage("");
     if (field.current) field.current.style.height = "auto";
@@ -70,10 +80,10 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
         setTurns((current) => [
           ...current,
           {
-            id: `local-reply-${Date.now()}`,
+            id: localTurnId("reply"),
             role: "assistant",
             message: payload.message ?? "",
-            timestamp: new Date().toISOString(),
+            timestamp: nowStamp(),
             model: null,
             context: warnings.length > 0 ? { warnings } : null,
           },

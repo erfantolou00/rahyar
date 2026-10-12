@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 const DISMISS_KEY = "rahyar-install-dismissed";
 
@@ -22,29 +22,37 @@ function isStandalone() {
   return iosStandalone || window.matchMedia("(display-mode: standalone)").matches;
 }
 
+function iosInstallGuide(): boolean {
+  if (typeof window === "undefined") return false;
+  if (isStandalone() || sessionStorage.getItem(DISMISS_KEY) === "1") return false;
+  return isIos();
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [iosGuide, setIosGuide] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const iosGuide = useSyncExternalStore(subscribeToNothing, iosInstallGuide, () => false);
 
   useEffect(() => {
     if (isStandalone() || sessionStorage.getItem(DISMISS_KEY) === "1") return;
 
     function onPrompt(event: Event) {
       event.preventDefault();
-      setIosGuide(false);
       setDeferred(event as BeforeInstallPromptEvent);
     }
 
     window.addEventListener("beforeinstallprompt", onPrompt);
-    if (isIos()) setIosGuide(true);
-
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
   function dismiss() {
     sessionStorage.setItem(DISMISS_KEY, "1");
     setDeferred(null);
-    setIosGuide(false);
+    setDismissed(true);
   }
 
   async function install() {
@@ -59,7 +67,8 @@ export function InstallPrompt() {
     }
   }
 
-  if (!deferred && !iosGuide) return null;
+  const showIos = iosGuide && !dismissed && deferred == null;
+  if (!deferred && !showIos) return null;
 
   return (
     <div className="fixed bottom-4 left-4 z-40 max-w-sm" role="region" aria-label="نصب رهیار">

@@ -70,9 +70,10 @@ export function BasketBoard({
         <Summary label="بازده" value={totalPercent} tone={totalTone} />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="tablist" aria-label="نمای سبد">
         <button
           type="button"
+          role="tab"
           aria-selected={tab === "holdings"}
           onClick={() => setTab("holdings")}
           className={tab === "holdings" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
@@ -81,6 +82,7 @@ export function BasketBoard({
         </button>
         <button
           type="button"
+          role="tab"
           aria-selected={tab === "fundamentals"}
           onClick={() => setTab("fundamentals")}
           className={tab === "fundamentals" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
