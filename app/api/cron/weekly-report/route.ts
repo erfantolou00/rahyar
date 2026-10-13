@@ -5,8 +5,9 @@ import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { createServiceClient } from "@/lib/supabase/service";
 
 // Friday 16:30 UTC is 20:00 in Tehran. vercel.json schedules this route.
+// publishWeeklyReport refreshes prices and allocation deviations before it writes the row.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET?.trim() || null;

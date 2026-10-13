@@ -6,13 +6,14 @@ import { refreshAllPrices } from "@/lib/finance/prices/refresh";
 
 const FRESH_FOR_MS = 15 * 60 * 1000;
 
-export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refreshed: boolean }> {
+export async function ensureLivePrices(supabase: FinanceClient, userId: string): Promise<{ refreshed: boolean }> {
   try {
     const latest = await Promise.all(
       liveSymbols.map((symbol) =>
         supabase
           .from("prices")
           .select("symbol,timestamp,price,source")
+          .eq("user_id", userId)
           .eq("symbol", symbol)
           .order("timestamp", { ascending: false })
           .limit(1)
@@ -41,10 +42,10 @@ export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refre
     const btc = newest.get("BTC");
     const btcStillInRial = btc != null && isBtcQuotedInRial(btc.price);
     const btcFromTether = btc != null && /^(nobitex|binance|coingecko):/.test(btc.source);
-    const listedStale = await heldListedPricesStale(supabase);
+    const listedStale = await heldListedPricesStale(supabase, userId);
     const shouldRefresh = !fresh || btcStillInRial || (btc != null && !btcFromTether) || listedStale;
     if (!shouldRefresh) return { refreshed: false };
-    const report = await refreshAllPrices(supabase);
+    const report = await refreshAllPrices(supabase, userId);
     return { refreshed: report.stored.length > 0 };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -53,8 +54,8 @@ export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refre
   }
 }
 
-async function heldListedPricesStale(supabase: FinanceClient): Promise<boolean> {
-  const assets = await supabase.from("assets").select("type,symbol").in("type", ["stock", "fund"]);
+async function heldListedPricesStale(supabase: FinanceClient, userId: string): Promise<boolean> {
+  const assets = await supabase.from("assets").select("type,symbol").eq("user_id", userId).in("type", ["stock", "fund"]);
   if (assets.error) {
     console.error(`[prices] listed read failed: ${assets.error.message}`);
     return false;
@@ -75,6 +76,7 @@ async function heldListedPricesStale(supabase: FinanceClient): Promise<boolean> 
       supabase
         .from("prices")
         .select("timestamp")
+        .eq("user_id", userId)
         .eq("asset_type", asset.type)
         .eq("symbol", asset.symbol.trim())
         .order("timestamp", { ascending: false })

@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
 
+export const primaryControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 outline-none hover:bg-primary/80 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
+export const quietControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg border border-line bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 outline-none hover:bg-accent-soft focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
+export const dangerControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 px-4 text-sm font-medium text-destructive transition-colors duration-150 outline-none hover:bg-destructive/20 focus-visible:ring-3 focus-visible:ring-destructive/30 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
 export function PageHeader({
   title,
   description,
@@ -11,11 +20,11 @@ export function PageHeader({
 }) {
   return (
     <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{description}</p> : null}
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+        {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </header>
   );
 }
@@ -28,8 +37,8 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line/80 bg-card p-4 shadow-[0_1px_1px_rgb(42_51_46/0.04),0_12px_32px_-20px_rgb(62_107_92/0.18)]">
-      {title ? <h2 className="mb-4 text-base font-semibold">{title}</h2> : null}
+    <section className="surface overflow-hidden p-4">
+      {title ? <h2 className="mb-4 border-b border-line pb-3 text-base font-semibold text-foreground">{title}</h2> : null}
       {children}
     </section>
   );
@@ -38,7 +47,7 @@ export function Panel({
 export function Notice({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <p className="mb-4 rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-sm text-danger">
+    <p role="alert" className="mb-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
       {message}
     </p>
   );
@@ -68,7 +77,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-1.5 text-sm">
+    <label className="grid gap-2 text-sm">
       <span>{label}</span>
       {children}
     </label>
@@ -77,10 +86,7 @@ export function Field({
 
 export function SubmitButton({ children }: { children: ReactNode }) {
   return (
-    <button
-      type="submit"
-      className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium transition hover:opacity-90"
-    >
+    <button type="submit" className={primaryControlClass}>
       {children}
     </button>
   );

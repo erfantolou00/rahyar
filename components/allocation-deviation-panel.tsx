@@ -23,7 +23,7 @@ export function AllocationDeviationPanel({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-base font-semibold">انحراف از بازه‌ی تخصیص</h2>
-        <Link href="/allocations" className="text-sm underline underline-offset-4">
+        <Link href="/allocations" className="inline-flex h-11 items-center text-sm underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           تنظیم بازه‌ها
         </Link>
       </div>

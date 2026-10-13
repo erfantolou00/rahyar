@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 function RefreshSubmit() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} className="h-11 px-4">
       {pending ? "در حال به‌روزرسانی..." : "به‌روزرسانی قیمت"}
     </Button>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { ChevronLeft } from "lucide-react";
+import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage, quietControlClass } from "@/components/chrome";
 import { captureReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
 import { formatMoney, formatNumber, formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
@@ -38,10 +39,7 @@ export default async function ReportsPage({
               <SubmitButton>ساخت گزارش هفتگی</SubmitButton>
             </form>
             <form action={captureReport}>
-              <button
-                type="submit"
-                className="rounded-xl border border-line bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent-soft"
-              >
+              <button type="submit" className={quietControlClass}>
                 ساخت گزارش لحظه‌ای
               </button>
             </form>
@@ -58,26 +56,29 @@ export default async function ReportsPage({
                   <li key={report.id}>
                     <Link
                       href={`/reports/${report.id}`}
-                      className="block rounded-2xl border border-line bg-card p-4 shadow-sm hover:bg-accent-soft"
+                      className="surface flex items-center justify-between gap-4 p-4 transition-colors duration-150 outline-none hover:bg-accent-soft focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
                     >
-                      <p className="font-medium">
-                        {reportTypeLabels[report.type]}
-                        <span className="numeric text-muted-foreground"> · {formatTimestamp(report.created_at)}</span>
-                      </p>
-                      {weekly ? (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          ارزش <span className="numeric">{formatMoney(weekly.portfolio.total_value)}</span>
-                          {" · "}
-                          <span className="numeric">
-                            {formatWeekChange(weekly.portfolio.change_value, weekly.portfolio.change_percent)}
-                          </span>
-                          {" · "}
-                          <span className="numeric">{formatNumber(weekly.alerts.length, 0)}</span>
-                          {" هشدار"}
+                      <div className="min-w-0">
+                        <p className="font-medium">
+                          {reportTypeLabels[report.type]}
+                          <span className="numeric text-muted-foreground"> · {formatTimestamp(report.created_at)}</span>
                         </p>
-                      ) : (
-                        <p className="mt-2 text-sm text-muted-foreground">تصویر ذخیره‌شده دفتر</p>
-                      )}
+                        {weekly ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            ارزش <span className="numeric">{formatMoney(weekly.portfolio.total_value)}</span>
+                            {" · "}
+                            <span className="numeric">
+                              {formatWeekChange(weekly.portfolio.change_value, weekly.portfolio.change_percent)}
+                            </span>
+                            {" · "}
+                            <span className="numeric">{formatNumber(weekly.alerts.length, 0)}</span>
+                            {" هشدار"}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">تصویر ذخیره‌شده دفتر</p>
+                        )}
+                      </div>
+                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     </Link>
                   </li>
                 );

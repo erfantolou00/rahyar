@@ -8,17 +8,17 @@ export type RefreshReport = {
   missed: string[];
 };
 
-export async function refreshAllPrices(writer: FinanceClient): Promise<RefreshReport> {
-  const [quotes, listed] = await Promise.all([fetchMarketQuotes(), refreshHeldListedPrices(writer)]);
-  const market = await storeQuotes(quotes, writer);
+export async function refreshAllPrices(writer: FinanceClient, userId: string): Promise<RefreshReport> {
+  const [quotes, listed] = await Promise.all([fetchMarketQuotes(), refreshHeldListedPrices(writer, userId)]);
+  const market = await storeQuotes(quotes, writer, userId);
   return {
     stored: [...market.stored, ...listed.stored],
     missed: [...market.missed, ...listed.missed],
   };
 }
 
-async function refreshHeldListedPrices(writer: FinanceClient): Promise<RefreshReport> {
-  const assets = await writer.from("assets").select("type,symbol").in("type", ["stock", "fund"]);
+async function refreshHeldListedPrices(writer: FinanceClient, userId: string): Promise<RefreshReport> {
+  const assets = await writer.from("assets").select("type,symbol").eq("user_id", userId).in("type", ["stock", "fund"]);
   if (assets.error) {
     console.error(`[prices] listed assets failed: ${assets.error.message}`);
     return { stored: [], missed: [] };
@@ -47,6 +47,7 @@ async function refreshHeldListedPrices(writer: FinanceClient): Promise<RefreshRe
       continue;
     }
     const { error } = await writer.from("prices").insert({
+      user_id: userId,
       asset_type: asset.type,
       symbol: asset.symbol.trim(),
       price: quote.price,
@@ -63,14 +64,14 @@ async function refreshHeldListedPrices(writer: FinanceClient): Promise<RefreshRe
   return { stored, missed };
 }
 
-export async function storeQuotes(quotes: MarketQuote[], writer: FinanceClient): Promise<RefreshReport> {
+export async function storeQuotes(quotes: MarketQuote[], writer: FinanceClient, userId: string): Promise<RefreshReport> {
   const stored: string[] = [];
   const fetched = new Set(quotes.map((quote) => quote.symbol));
   const missed = (["USD", "GOLD18", "BTC"] as const).filter((symbol) => !fetched.has(symbol));
 
   for (const quote of quotes) {
     try {
-      const saved = await insertQuote(writer, quote);
+      const saved = await insertQuote(writer, userId, quote);
       if (saved) stored.push(quote.symbol);
       else missed.push(quote.symbol);
     } catch (error) {
@@ -83,8 +84,9 @@ export async function storeQuotes(quotes: MarketQuote[], writer: FinanceClient):
   return { stored, missed: [...missed] };
 }
 
-async function insertQuote(writer: FinanceClient, quote: MarketQuote): Promise<boolean> {
+async function insertQuote(writer: FinanceClient, userId: string, quote: MarketQuote): Promise<boolean> {
   const { error } = await writer.from("prices").insert({
+    user_id: userId,
     asset_type: quote.assetType,
     symbol: quote.symbol,
     price: quote.price,

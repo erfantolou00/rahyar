@@ -129,18 +129,26 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.surface {
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: var(--card);
+  box-shadow: 0 1px 1px rgb(42 51 46 / 0.04), 0 12px 32px -20px rgb(62 107 92 / 0.16);
+}
+
 .field-input {
   width: 100%;
-  border-radius: 0.85rem;
+  min-height: 2.75rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--card);
-  padding: 0.65rem 0.8rem;
+  padding: 0.5rem 0.75rem;
   outline: none;
 }
 
 .field-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 
 table th,
@@ -152,6 +160,9 @@ table td {
 }
 
 table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted-foreground);
@@ -171,7 +182,14 @@ table tbody tr:hover td {
   background: color-mix(in srgb, var(--accent-soft) 65%, transparent);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  table tbody tr {
+    transition: none;
+  }
+}
+
 .dark {
+  color-scheme: dark;
   --background: #141816;
   --foreground: #e7eee9;
   --card: #1c221f;
@@ -213,6 +231,11 @@ table tbody tr:hover td {
 
 [data-slot="card"] {
   box-shadow: 0 1px 1px rgb(42 51 46 / 0.04), 0 12px 32px -20px rgb(62 107 92 / 0.16);
+}
+
+.dark .surface,
+.dark [data-slot="card"] {
+  box-shadow: 0 1px 1px rgb(0 0 0 / 0.28), 0 12px 32px -20px rgb(0 0 0 / 0.55);
 }
 
 @layer base {

@@ -14,9 +14,9 @@ function returnTo(formData: FormData): string {
 }
 
 export async function refreshLivePrices(formData: FormData) {
-  const { supabase } = await requireSession();
+  const { supabase, userId } = await requireSession();
   const target = returnTo(formData);
-  const report = await refreshAllPrices(supabase);
+  const report = await refreshAllPrices(supabase, userId);
   revalidatePath("/");
   revalidatePath("/basket");
   revalidatePath("/prices");

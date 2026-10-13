@@ -140,7 +140,7 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
                     key={suggestion.text}
                     type="button"
                     onClick={() => void send(suggestion.text)}
-                    className="rounded-2xl border border-line bg-card px-3 py-3 text-start text-sm shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+                    className="rounded-xl border border-line bg-card px-4 py-3 text-start text-sm transition-colors duration-150 outline-none hover:bg-accent-soft focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
                   >
                     <span className="block text-xs font-medium text-primary">{suggestion.title}</span>
                     <span className="mt-1 block leading-6 text-foreground">{suggestion.text}</span>
@@ -163,36 +163,38 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
           void send(message);
         }}
       >
-        <div className="w-full rounded-[1.6rem] border border-line bg-card p-2 shadow-[0_12px_40px_-22px_rgba(62,107,92,0.35)]">
+        <div className="w-full rounded-xl border border-line bg-card p-2 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
           <div className="flex items-end gap-2 px-2">
-            <textarea
-              ref={field}
-              name="message"
-              rows={1}
-              maxLength={2000}
-              value={message}
-              disabled={pending}
-              onChange={(event) => {
-                setMessage(event.target.value);
-                resizeField();
-              }}
-              onKeyDown={onKeyDown}
-              placeholder="پیام بنویسید…"
-              aria-label="پیام شما"
-              className="max-h-40 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-sm leading-7 outline-none placeholder:text-muted-foreground"
-            />
+            <label className="grid min-w-0 flex-1 gap-1">
+              <span className="px-1 text-xs text-muted-foreground">پیام</span>
+              <textarea
+                ref={field}
+                name="message"
+                rows={1}
+                maxLength={2000}
+                value={message}
+                disabled={pending}
+                onChange={(event) => {
+                  setMessage(event.target.value);
+                  resizeField();
+                }}
+                onKeyDown={onKeyDown}
+                placeholder="پیام بنویسید…"
+                className="max-h-40 min-h-11 w-full resize-none bg-transparent py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground"
+              />
+            </label>
             <button
               type="submit"
               disabled={pending || message.trim().length === 0}
               aria-label="ارسال"
-              className="mb-1 grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-40"
+              className="mb-1 grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-colors duration-150 outline-none hover:bg-primary/80 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40 motion-reduce:transition-none"
             >
               <ArrowUp className="size-4" />
             </button>
           </div>
           <p className="px-3 pb-1 text-[11px] leading-5 text-muted-foreground">برای ارسال اینتر را بزنید. برای خط جدید، شیفت و اینتر.</p>
         </div>
-        {error ? <p className="mt-2 w-full text-sm leading-7 text-danger">{error}</p> : null}
+        {error ? <p role="alert" className="mt-2 w-full text-sm leading-6 text-danger">{error}</p> : null}
       </form>
     </div>
   );
@@ -219,9 +221,9 @@ function Typing() {
         <p className="mb-1.5 text-xs font-semibold">رهیار</p>
         <div className="inline-flex items-center gap-1.5 rounded-2xl rounded-ss-md border border-line bg-card px-4 py-3 shadow-sm">
           <span className="sr-only">در حال نوشتن</span>
-          <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:120ms]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:240ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none [animation-delay:0ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none [animation-delay:120ms]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none [animation-delay:240ms]" />
         </div>
       </div>
     </article>
@@ -260,7 +262,7 @@ function Turn({ turn }: { turn: ChatTurn }) {
         {turn.context ? (
           <details className="mt-2">
             <summary className="cursor-pointer text-xs text-muted-foreground">داده‌ای که مدل دیده است</summary>
-            <pre className="numeric mt-2 max-h-60 overflow-auto rounded-xl bg-muted/70 p-3 text-left text-xs leading-6" dir="ltr">
+            <pre className="numeric mt-2 max-h-60 overflow-auto rounded-xl bg-muted/70 p-3 text-start text-xs leading-6" dir="ltr">
               {JSON.stringify(turn.context, null, 2)}
             </pre>
           </details>

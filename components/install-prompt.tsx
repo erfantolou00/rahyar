@@ -71,25 +71,25 @@ export function InstallPrompt() {
   if (!deferred && !showIos) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 max-w-sm" role="region" aria-label="نصب رهیار">
+    <div className="fixed bottom-4 start-4 z-40 max-w-sm" role="region" aria-label="نصب رهیار">
       {deferred ? (
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={install}
-            className="rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg transition hover:opacity-90"
+            className="inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/80 focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             نصب رهیار
           </button>
-          <button type="button" onClick={dismiss} className="rounded-full px-2 py-2 text-xs text-muted-foreground">
+          <button type="button" onClick={dismiss} className="inline-flex h-11 items-center rounded-full px-4 text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             بستن
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border border-line bg-card p-4 text-sm leading-7 shadow-lg">
+        <div className="surface p-4 text-sm leading-6">
           <p>روی آیفون ابتدا رهیار را به صفحهٔ اصلی اضافه کنید.</p>
           <p className="mt-1 font-medium">افزودن به صفحه‌ی اصلی از Safari</p>
-          <button type="button" onClick={dismiss} className="mt-2 text-xs text-muted-foreground">
+          <button type="button" onClick={dismiss} className="mt-2 inline-flex h-11 items-center text-sm text-muted-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             بستن
           </button>
         </div>

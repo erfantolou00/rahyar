@@ -9,6 +9,6 @@ export async function POST() {
   const session = await getAuthorizedSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const result = await ensureLivePrices(session.supabase);
+  const result = await ensureLivePrices(session.supabase, session.userId);
   return NextResponse.json(result);
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { EmptyState } from "@/components/chrome";
+import { EmptyState, primaryControlClass, quietControlClass } from "@/components/chrome";
 import { PricesTable, type PriceTableRow } from "@/components/prices-table";
 import { formatNumber } from "@/lib/finance/format";
 import { priceListHref } from "@/lib/finance/prices/list";
@@ -19,15 +19,17 @@ export function PricesBrowser({
 }) {
   return (
     <div>
-      <form action="/prices" method="get" className="mb-3 flex flex-wrap items-center gap-2">
-        <input
-          name="q"
-          defaultValue={needle}
-          placeholder="نماد، نوع یا منبع"
-          aria-label="جستجو در قیمت‌ها"
-          className="field-input max-w-xs"
-        />
-        <button type="submit" className="rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground">
+      <form action="/prices" method="get" className="mb-4 flex flex-wrap items-end gap-2">
+        <label className="grid min-w-48 flex-1 gap-2 text-sm sm:max-w-xs">
+          <span>جستجو</span>
+          <input
+            name="q"
+            defaultValue={needle}
+            placeholder="نماد، نوع یا منبع"
+            className="field-input"
+          />
+        </label>
+        <button type="submit" className={primaryControlClass}>
           جستجو
         </button>
         {needle ? (
@@ -55,18 +57,18 @@ export function PricesBrowser({
           {pageCount > 1 ? (
             <nav className="mt-3 flex items-center justify-between gap-2 text-sm" aria-label="صفحه‌های قیمت">
               {page > 1 ? (
-                <Link href={priceListHref(needle, page - 1)} className="rounded-lg border border-line px-3 py-1.5">
+                <Link href={priceListHref(needle, page - 1)} className={quietControlClass}>
                   قبلی
                 </Link>
               ) : (
-                <span className="rounded-lg border border-line px-3 py-1.5 text-muted-foreground">قبلی</span>
+                <span className={`${quietControlClass} text-muted-foreground`}>قبلی</span>
               )}
               {page < pageCount ? (
-                <Link href={priceListHref(needle, page + 1)} className="rounded-lg border border-line px-3 py-1.5">
+                <Link href={priceListHref(needle, page + 1)} className={quietControlClass}>
                   بعدی
                 </Link>
               ) : (
-                <span className="rounded-lg border border-line px-3 py-1.5 text-muted-foreground">بعدی</span>
+                <span className={`${quietControlClass} text-muted-foreground`}>بعدی</span>
               )}
             </nav>
           ) : null}

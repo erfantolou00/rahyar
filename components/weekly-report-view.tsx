@@ -23,11 +23,11 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
         <span className="numeric">{formatTimestamp(content.period.to)}</span>
       </p>
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+        <section className="surface p-4">
           <h2 className="text-sm text-muted-foreground">ارزش سبد</h2>
           <p className="numeric mt-2 text-2xl font-semibold">{formatMoney(content.portfolio.total_value)}</p>
         </section>
-        <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+        <section className="surface p-4">
           <h2 className="text-sm text-muted-foreground">تغییر نسبت به هفته قبل</h2>
           <p className={`numeric mt-2 text-2xl font-semibold ${tone(content.portfolio.change_value)}`}>
             {formatWeekChange(content.portfolio.change_value, content.portfolio.change_percent)}
@@ -35,12 +35,12 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
         </section>
       </div>
 
-      <section className="overflow-hidden rounded-2xl border border-line bg-card p-4 shadow-sm">
+      <section className="overflow-hidden surface p-4">
         <h2 className="mb-4 text-base font-semibold">سود و زیان هر دارایی</h2>
         {content.assets.length === 0 ? (
           <EmptyState>دارایی‌ای در این گزارش نیست.</EmptyState>
         ) : (
-          <div className="-mx-4 overflow-x-auto border-t border-line">
+          <div className="-mx-4 overflow-x-auto overflow-y-clip border-t border-line">
             <table className="w-full min-w-160 text-sm">
               <thead>
                 <tr className="border-b border-line text-muted-foreground">
@@ -69,7 +69,7 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
         )}
       </section>
 
-      <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+      <section className="surface p-4">
         <h2 className="mb-4 text-base font-semibold">هشدارهای این هفته</h2>
         {content.alerts.length === 0 ? (
           <EmptyState>در این هفته هشداری ثبت نشده است.</EmptyState>
@@ -96,7 +96,7 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
         )}
       </section>
 
-      <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+      <section className="surface p-4">
         <h2 className="mb-4 text-base font-semibold">وزن نسبت به بازه مجاز</h2>
         {content.weights.length === 0 ? (
           <EmptyState>طبقه‌ای برای مقایسه نیست.</EmptyState>
@@ -113,7 +113,7 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
       </section>
 
       {content.commentary ? (
-        <section className="rounded-2xl border border-line bg-card p-4 shadow-sm">
+        <section className="surface p-4">
           <h2 className="mb-4 text-base font-semibold">توضیح تکمیلی</h2>
           <p className="whitespace-pre-wrap text-sm leading-7">{content.commentary}</p>
           <ReplyWarnings warnings={content.commentary_warnings} />

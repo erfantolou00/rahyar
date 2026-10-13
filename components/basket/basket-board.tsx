@@ -22,6 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { SortableTable, type SortableColumn } from "@/components/sortable-table";
 
+function tabClass(selected: boolean) {
+  return selected
+    ? "inline-flex h-11 items-center rounded-lg bg-primary px-4 text-sm text-primary-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    : "inline-flex h-11 items-center rounded-lg border border-line bg-card px-4 text-sm outline-none hover:bg-accent-soft focus-visible:ring-3 focus-visible:ring-ring/50";
+}
+
 const toneClass: Record<ValueTone, string> = {
   up: "text-ok",
   down: "text-danger",
@@ -76,7 +82,7 @@ export function BasketBoard({
           role="tab"
           aria-selected={tab === "holdings"}
           onClick={() => setTab("holdings")}
-          className={tab === "holdings" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
+          className={tabClass(tab === "holdings")}
         >
           سبد
         </button>
@@ -85,7 +91,7 @@ export function BasketBoard({
           role="tab"
           aria-selected={tab === "fundamentals"}
           onClick={() => setTab("fundamentals")}
-          className={tab === "fundamentals" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
+          className={tabClass(tab === "fundamentals")}
         >
           بنیادی سهام
         </button>
@@ -99,7 +105,7 @@ export function BasketBoard({
         <>
       <div className="flex justify-start">
         <Dialog>
-          <DialogTrigger render={<Button type="button" />}>افزودن دارایی</DialogTrigger>
+          <DialogTrigger render={<Button type="button" className="h-11 px-4" />}>افزودن دارایی</DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
@@ -169,7 +175,7 @@ export function BasketBoard({
                     {basketColumns.slice(1).map((column) => (
                       <div key={column.key} className="flex items-start justify-between gap-3 text-sm">
                         <span className="text-muted-foreground">{column.label}</span>
-                        <span className="text-left">
+                        <span className="text-end">
                           <span className={`${column.numeric ? "numeric" : ""} ${column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""}`}>
                             {row.cells[column.key]}
                           </span>
@@ -224,10 +230,10 @@ export function BasketBoard({
             <form action={deleteAsset}>
               <input type="hidden" name="id" value={removing.id} />
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setRemoving(null)}>
+                <Button type="button" variant="outline" className="h-11 px-4" onClick={() => setRemoving(null)}>
                   انصراف
                 </Button>
-                <Button type="submit" variant="destructive">
+                <Button type="submit" variant="destructive" className="h-11 px-4">
                   حذف
                 </Button>
               </DialogFooter>
@@ -244,7 +250,7 @@ function HoldingName({ row, onOpen }: { row: PresentedRow; onOpen: (row: Present
     <button
       type="button"
       onClick={() => onOpen(row)}
-      className="inline-flex items-center gap-1 text-start font-medium underline-offset-4 hover:underline"
+      className="inline-flex min-h-11 items-center gap-1 text-start font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <span>{row.cells.name}</span>
       <LineChart className="size-3.5 text-muted-foreground" aria-hidden />
@@ -275,10 +281,10 @@ function RowActions({
 }) {
   return (
     <div className="flex gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row)}>
+      <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onEdit(row)}>
         ویرایش
       </Button>
-      <Button type="button" size="sm" variant="destructive" onClick={() => onRemove(row)}>
+      <Button type="button" variant="destructive" className="h-11 px-4" onClick={() => onRemove(row)}>
         حذف
       </Button>
     </div>
@@ -310,7 +316,7 @@ function AssetEditor({
 function SaveButton({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} className="h-11 px-4">
       {pending ? "در حال ذخیره..." : children}
     </Button>
   );

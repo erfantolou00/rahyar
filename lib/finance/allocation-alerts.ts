@@ -50,10 +50,16 @@ export function deviationsForSnapshot(
 
 export async function syncAllocationDeviationAlerts(
   supabase: FinanceClient,
+  userId: string,
   deviations: AllocationDeviation[],
 ): Promise<LoadResult<AllocationDeviation[]>> {
   const existing = await readRows<Alert>(
-    supabase.from("alerts").select("*").eq("kind", ALLOCATION_DEVIATION_KIND).eq("is_active", true),
+    supabase
+      .from("alerts")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("kind", ALLOCATION_DEVIATION_KIND)
+      .eq("is_active", true),
   );
   if (!existing.ok) return existing;
 
@@ -63,7 +69,7 @@ export async function syncAllocationDeviationAlerts(
   };
 
   const frequencyRows = await readRows<AlertFrequency>(
-    supabase.from("alert_frequencies").select("*").eq("kind", ALLOCATION_DEVIATION_KIND),
+    supabase.from("alert_frequencies").select("*").eq("user_id", userId).eq("kind", ALLOCATION_DEVIATION_KIND),
   );
   if (!frequencyRows.ok) return frequencyRows;
   const storedFrequency = frequencyRows.data[0]?.frequency;
@@ -82,6 +88,7 @@ export async function syncAllocationDeviationAlerts(
 
     if (!current) {
       const { error } = await supabase.from("alerts").insert({
+        user_id: userId,
         kind: ALLOCATION_DEVIATION_KIND,
         asset_type: deviation.assetType,
         message,

@@ -54,7 +54,10 @@ export default async function ReportDetailPage({
         title={`${reportTypeLabels[report.type]} · ${formatTimestamp(report.created_at)}`}
         description="عددهای همین گزارش همان‌طور که ذخیره شده‌اند نشان داده می‌شوند."
         action={
-          <Link href="/reports" className="text-sm text-muted-foreground underline underline-offset-4">
+          <Link
+            href="/reports"
+            className="inline-flex h-11 items-center text-sm text-muted-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
             بازگشت به فهرست
           </Link>
         }
@@ -66,7 +69,7 @@ export default async function ReportDetailPage({
         <WeeklyReportView content={weekly} />
       ) : (
         <Panel title="محتوا">
-          <pre className="numeric overflow-x-auto text-left text-xs leading-6" dir="ltr">
+          <pre className="numeric overflow-x-auto text-start text-xs leading-6" dir="ltr">
             {JSON.stringify(report.content, null, 2)}
           </pre>
         </Panel>

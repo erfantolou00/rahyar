@@ -24,7 +24,7 @@ export function SortableTable<T>({
   columns,
   trailing,
   minWidth = "40rem",
-  className = "overflow-x-auto rounded-xl border border-line bg-card",
+  className = "overflow-x-auto overflow-y-clip rounded-xl border border-line bg-card",
 }: {
   rows: T[];
   rowKey: (row: T) => string;
@@ -52,7 +52,7 @@ export function SortableTable<T>({
                   <button
                     type="button"
                     onClick={() => toggle(column)}
-                    className="inline-flex items-center gap-1 rounded-md text-start text-xs font-semibold text-muted-foreground transition hover:text-foreground"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-start text-xs font-semibold text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
                   >
                     <span>{column.label}</span>
                     <SortIcon direction={active} />

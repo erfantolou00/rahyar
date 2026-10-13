@@ -68,10 +68,10 @@ export default async function PricesPage({
                 </select>
               </Field>
               <Field label="نماد">
-                <input name="symbol" required maxLength={32} dir="ltr" className="field-input text-left" />
+                <input name="symbol" required maxLength={32} dir="ltr" className="field-input text-start" />
               </Field>
               <Field label="قیمت">
-                <input name="price" required inputMode="decimal" dir="ltr" className="field-input text-left" />
+                <input name="price" required inputMode="decimal" dir="ltr" className="field-input text-start" />
               </Field>
               <Field label="منبع">
                 <input name="source" defaultValue="دستی" maxLength={80} className="field-input" />

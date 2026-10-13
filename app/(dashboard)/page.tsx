@@ -9,13 +9,20 @@ import { formatNumber, formatPercent } from "@/lib/finance/format";
 import { presentMacro } from "@/lib/finance/macro/present";
 import { allocationStatusLabels, assetTypeLabels } from "@/lib/finance/labels";
 import { loadPortfolio, readRows } from "@/lib/finance/queries";
-import type { Alert, Allocation, MacroIndicatorRow } from "@/lib/finance/types";
-import { createClient } from "@/lib/supabase/server";
+import type { Alert, Allocation, AllocationStatus, MacroIndicatorRow } from "@/lib/finance/types";
+
+const weightTone: Record<AllocationStatus, string> = {
+  inside: "bg-ok",
+  below: "bg-warn",
+  above: "bg-warn",
+  unset: "bg-primary",
+};
+import { requireSession } from "@/lib/supabase/auth";
 
 export const metadata: Metadata = { title: "نمای کلی" };
 
 export default async function OverviewPage() {
-  const supabase = await createClient();
+  const { supabase, userId } = await requireSession();
   const [portfolio, alerts, allocationRows, macroRows] = await Promise.all([
     loadPortfolio(supabase),
     readRows<Alert>(supabase.from("alerts").select("*").eq("is_active", true)),
@@ -30,7 +37,7 @@ export default async function OverviewPage() {
   const deviations = allocationRows.ok
     ? deviationsForSnapshot(portfolio.data, allocationRows.data)
     : [];
-  const saved = allocationRows.ok ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
+  const saved = allocationRows.ok ? await syncAllocationDeviationAlerts(supabase, userId, deviations) : null;
   const saveState = !allocationRows.ok
     ? "saved"
     : saved?.ok
@@ -89,21 +96,36 @@ export default async function OverviewPage() {
               شروع کنید.
             </EmptyState>
           ) : (
-            <ul className="grid gap-3">
+            <ul className="grid gap-4">
               {portfolio.data.byType.map((row) => (
-                <li key={row.type} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{assetTypeLabels[row.type]}</span>
-                  <span className="text-muted-foreground">
-                    <span className="numeric">{formatPercent(row.weight)}</span>
-                    {" · "}
-                    {allocationStatusLabels[row.status]}
-                    {row.minPercent != null && row.maxPercent != null ? (
-                      <span className="numeric">
-                        {" "}
-                        ({formatNumber(row.minPercent, 0)}–{formatNumber(row.maxPercent, 0)})
-                      </span>
-                    ) : null}
-                  </span>
+                <li key={row.type} className="grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium">{assetTypeLabels[row.type]}</span>
+                    <span className="text-muted-foreground">
+                      <span className="numeric">{formatPercent(row.weight)}</span>
+                      {" · "}
+                      {allocationStatusLabels[row.status]}
+                      {row.minPercent != null && row.maxPercent != null ? (
+                        <span className="numeric">
+                          {" "}
+                          ({formatNumber(row.minPercent, 0)}–{formatNumber(row.maxPercent, 0)})
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-muted"
+                    role="meter"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(row.weight)}
+                    aria-label={assetTypeLabels[row.type]}
+                  >
+                    <div
+                      className={`h-full rounded-full ${weightTone[row.status]}`}
+                      style={{ width: `${Math.min(100, Math.max(0, row.weight))}%` }}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
