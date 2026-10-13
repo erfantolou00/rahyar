@@ -1,15 +1,6 @@
-import type { TransactionType } from "@/lib/finance/types";
-
 export type GrowthPoint = {
   at: string;
   value: number;
-};
-
-export type GrowthTradeInput = {
-  at: string;
-  type: TransactionType;
-  qty: number;
-  price: number;
 };
 
 export const growthRanges = [
@@ -57,18 +48,13 @@ export function todayKey(now = Date.now()): string {
   return dayKey(new Date(now).toISOString());
 }
 
-function signedQty(type: TransactionType, qty: number): number {
-  const amount = Math.abs(qty);
-  if (type === "buy" || type === "deposit") return amount;
-  if (type === "sell" || type === "withdraw") return -amount;
-  return 0;
-}
-
+/** Values the current basket quantity at each stored daily price. */
 export function buildHoldingSeries(input: {
   quantity: number;
-  trades: GrowthTradeInput[];
   quotes: { at: string; price: number }[];
-}): { basis: "trades" | "quantity"; points: GrowthPoint[] } {
+}): GrowthPoint[] {
+  if (!(input.quantity > 0)) return [];
+
   const quoteByDay = new Map<string, number>();
   const quotes = [...input.quotes].sort((left, right) => dayKey(left.at).localeCompare(dayKey(right.at)));
   for (const quote of quotes) {
@@ -76,58 +62,13 @@ export function buildHoldingSeries(input: {
     quoteByDay.set(dayKey(quote.at), quote.price);
   }
 
-  const trades = [...input.trades].sort((left, right) => dayKey(left.at).localeCompare(dayKey(right.at)));
-  if (trades.length === 0) {
-    if (!(input.quantity > 0)) return { basis: "quantity", points: [] };
-    let lastPrice: number | null = null;
-    const points: GrowthPoint[] = [];
-    for (const day of [...quoteByDay.keys()].sort()) {
-      const price = quoteByDay.get(day);
-      if (price != null) lastPrice = price;
-      if (lastPrice == null) continue;
-      points.push({ at: day, value: input.quantity * lastPrice });
-    }
-    return { basis: "quantity", points };
-  }
-
-  const tradesByDay = new Map<string, GrowthTradeInput[]>();
-  for (const trade of trades) {
-    const day = dayKey(trade.at);
-    const list = tradesByDay.get(day) ?? [];
-    list.push(trade);
-    tradesByDay.set(day, list);
-  }
-
-  const days = [...new Set([...quoteByDay.keys(), ...tradesByDay.keys()])].sort();
-  let qty = 0;
-  let lastPrice: number | null = null;
-  let sawPosition = false;
-  let closed = false;
   const points: GrowthPoint[] = [];
-
-  for (const day of days) {
-    for (const trade of tradesByDay.get(day) ?? []) {
-      qty += signedQty(trade.type, trade.qty);
-      if (trade.price > 0) lastPrice = trade.price;
-    }
-    const quote = quoteByDay.get(day);
-    if (quote != null) lastPrice = quote;
-    if (lastPrice == null) continue;
-
-    if (qty > 0) {
-      sawPosition = true;
-      closed = false;
-      points.push({ at: day, value: qty * lastPrice });
-      continue;
-    }
-
-    if (sawPosition && !closed) {
-      points.push({ at: day, value: 0 });
-      closed = true;
-    }
+  for (const day of [...quoteByDay.keys()].sort()) {
+    const price = quoteByDay.get(day);
+    if (price == null) continue;
+    points.push({ at: day, value: input.quantity * price });
   }
-
-  return { basis: "trades", points };
+  return points;
 }
 
 export function sliceGrowth(points: GrowthPoint[], days: number | null, today: string): GrowthSlice {

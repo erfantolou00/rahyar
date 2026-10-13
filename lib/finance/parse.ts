@@ -2,11 +2,9 @@ import {
   assetTypes,
   chatRoles,
   reportTypes,
-  transactionTypes,
   type AssetType,
   type ChatRole,
   type ReportType,
-  type TransactionType,
 } from "@/lib/finance/types";
 
 export function readString(formData: FormData, key: string): string {
@@ -15,10 +13,6 @@ export function readString(formData: FormData, key: string): string {
 
 export function isAssetType(value: string): value is AssetType {
   return (assetTypes as readonly string[]).includes(value);
-}
-
-export function isTransactionType(value: string): value is TransactionType {
-  return (transactionTypes as readonly string[]).includes(value);
 }
 
 export function isReportType(value: string): value is ReportType {

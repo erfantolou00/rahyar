@@ -115,7 +115,7 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-line/80 bg-card/80 px-4 py-3 backdrop-blur">
+      <header className="flex items-center gap-3 border-b border-line/80 bg-card/70 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
         <AssistantMark />
         <div className="min-w-0">
           <p className="text-sm font-semibold">رهیار</p>
@@ -124,7 +124,7 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`mx-auto flex w-full max-w-3xl flex-col px-4 py-6 ${empty ? "min-h-full" : "gap-5"}`}>
+        <div className={`flex w-full flex-col px-4 py-6 sm:px-6 lg:px-8 ${empty ? "min-h-full" : "gap-5"}`}>
           {empty ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-6 py-10 text-center">
               <AssistantMark large />
@@ -134,7 +134,7 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
                   عددها از سبد، هشدارها و گزارش هفتگی خوانده می‌شوند. عدد تازه‌ای ساخته نمی‌شود.
                 </p>
               </div>
-              <div className="grid w-full max-w-xl gap-2 sm:grid-cols-3">
+              <div className="grid w-full gap-2 sm:grid-cols-3">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion.text}
@@ -157,13 +157,13 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
       </div>
 
       <form
-        className="bg-gradient-to-t from-background via-background to-transparent px-4 pb-4 pt-2"
+        className="bg-gradient-to-t from-background via-background to-transparent px-4 pb-4 pt-2 sm:px-6 lg:px-8"
         onSubmit={(event) => {
           event.preventDefault();
           void send(message);
         }}
       >
-        <div className="mx-auto w-full max-w-3xl rounded-[1.6rem] border border-line bg-card p-2 shadow-[0_12px_40px_-18px_rgba(79,70,229,0.45)]">
+        <div className="w-full rounded-[1.6rem] border border-line bg-card p-2 shadow-[0_12px_40px_-22px_rgba(62,107,92,0.35)]">
           <div className="flex items-end gap-2 px-2">
             <textarea
               ref={field}
@@ -185,14 +185,14 @@ export function ChatThread({ initial }: { initial: ChatTurn[] }) {
               type="submit"
               disabled={pending || message.trim().length === 0}
               aria-label="ارسال"
-              className="mb-1 grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-brand-2 text-primary-foreground shadow-md shadow-primary/25 transition hover:opacity-95 disabled:opacity-40"
+              className="mb-1 grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-sm transition hover:opacity-95 disabled:opacity-40"
             >
               <ArrowUp className="size-4" />
             </button>
           </div>
           <p className="px-3 pb-1 text-[11px] leading-5 text-muted-foreground">برای ارسال اینتر را بزنید. برای خط جدید، شیفت و اینتر.</p>
         </div>
-        {error ? <p className="mx-auto mt-2 w-full max-w-3xl text-sm leading-7 text-danger">{error}</p> : null}
+        {error ? <p className="mt-2 w-full text-sm leading-7 text-danger">{error}</p> : null}
       </form>
     </div>
   );
@@ -202,7 +202,7 @@ function AssistantMark({ large = false }: { large?: boolean }) {
   return (
     <span
       aria-hidden
-      className={`grid shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-brand-2 text-primary-foreground shadow-md shadow-primary/20 ${
+      className={`grid shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm ${
         large ? "size-14" : "size-9"
       }`}
     >
@@ -235,7 +235,7 @@ function Turn({ turn }: { turn: ChatTurn }) {
     return (
       <div className="flex justify-start">
         <div className="max-w-[min(100%,34rem)]">
-          <div className="whitespace-pre-wrap rounded-2xl rounded-es-md bg-gradient-to-br from-primary to-[#3730a3] px-4 py-2.5 text-sm leading-7 text-primary-foreground shadow-sm">
+          <div className="whitespace-pre-wrap rounded-2xl rounded-es-md bg-primary px-4 py-2.5 text-sm leading-7 text-primary-foreground shadow-sm">
             <MessageText text={turn.message} />
           </div>
           {time ? <p className="mt-1 px-1 text-[11px] text-muted-foreground">{time}</p> : null}

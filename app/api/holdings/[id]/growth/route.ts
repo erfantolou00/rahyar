@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import { toNumber } from "@/lib/finance/format";
-import { buildHoldingSeries, dayKey, shiftDays, todayKey, type GrowthTradeInput } from "@/lib/finance/holding-growth";
+import { buildHoldingSeries, dayKey, shiftDays, todayKey } from "@/lib/finance/holding-growth";
 import type { FinanceClient } from "@/lib/finance/queries";
-import { transactionTypes, type AssetType, type TransactionType } from "@/lib/finance/types";
+import type { AssetType } from "@/lib/finance/types";
 import { getAuthorizedSession } from "@/lib/supabase/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const assetIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isTradeType(value: string): value is TransactionType {
-  return transactionTypes.some((type) => type === value);
-}
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getAuthorizedSession();
@@ -32,41 +28,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
   if (!asset.data) return NextResponse.json({ error: "missing" }, { status: 404 });
 
-  const tradesResult = await session.supabase
-    .from("transactions")
-    .select("id,type,qty,price,date,note")
-    .eq("asset_id", id)
-    .order("date", { ascending: true });
-  if (tradesResult.error) {
-    console.error(tradesResult.error);
-    return NextResponse.json({ error: "unavailable" }, { status: 503 });
-  }
-
   const symbol = asset.data.symbol.trim();
   const quotes = await loadDailyQuotes(session.supabase, asset.data.type, symbol);
-  const trades = (tradesResult.data ?? []).flatMap((row) => {
-    if (!isTradeType(row.type)) return [];
-    return [
-      {
-        id: row.id,
-        at: row.date,
-        type: row.type,
-        qty: toNumber(row.qty),
-        price: toNumber(row.price),
-        note: row.note,
-      },
-    ];
-  });
-  const series = buildHoldingSeries({
+  const points = buildHoldingSeries({
     quantity: toNumber(asset.data.quantity),
-    trades: trades.map(
-      (trade): GrowthTradeInput => ({
-        at: trade.at,
-        type: trade.type,
-        qty: trade.qty,
-        price: trade.price,
-      }),
-    ),
     quotes,
   });
   const listed = asset.data.type === "stock" || asset.data.type === "fund";
@@ -75,9 +40,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   return NextResponse.json({
     symbol: asset.data.symbol,
     unit,
-    basis: series.basis,
-    points: series.points,
-    trades,
+    points,
   });
 }
 

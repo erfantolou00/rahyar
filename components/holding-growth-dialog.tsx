@@ -9,35 +9,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { formatDay, formatDollar, formatMoney, formatNumber, formatPercent } from "@/lib/finance/format";
+import { formatDay, formatDollar, formatMoney, formatPercent } from "@/lib/finance/format";
 import {
-  dayKey,
   growthRanges,
-  shiftDays,
   sliceGrowth,
   todayKey,
   type GrowthPoint,
   type GrowthRangeId,
 } from "@/lib/finance/holding-growth";
-import { transactionTypeLabels } from "@/lib/finance/labels";
 import type { PresentedRow } from "@/lib/finance/basket-view";
-import type { TransactionType } from "@/lib/finance/types";
-
-type GrowthTrade = {
-  id: string;
-  at: string;
-  type: TransactionType;
-  qty: number;
-  price: number;
-  note: string | null;
-};
 
 type GrowthPayload = {
   symbol: string;
   unit: "rial" | "usd";
-  basis: "trades" | "quantity";
   points: GrowthPoint[];
-  trades: GrowthTrade[];
 };
 
 export function HoldingGrowthDialog({
@@ -85,23 +70,13 @@ export function HoldingGrowthDialog({
   const current = load?.id === rowId && load.status === "ready" ? load.payload : null;
   const failed = load?.id === rowId && load.status === "error";
   const summary = current ? sliceGrowth(current.points, selected?.days ?? null, today) : null;
-  const windowStart = selected?.days == null ? null : shiftDays(today, selected.days);
-  const trades = current
-    ? current.trades
-        .filter((trade) => {
-          const day = dayKey(trade.at);
-          if (windowStart == null) return day <= today;
-          return day >= windowStart && day <= today;
-        })
-        .sort((left, right) => right.at.localeCompare(left.at))
-    : [];
 
   return (
     <Dialog open={row != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>رشد {current?.symbol ?? row?.cells.name}</DialogTitle>
-          <DialogDescription>ارزش پول شما در این دارایی، در بازه‌های زمانی مختلف، همراه با خرید و فروش.</DialogDescription>
+          <DialogDescription>ارزش تعداد فعلی این دارایی، با قیمت ذخیره‌شده در هر روز.</DialogDescription>
         </DialogHeader>
 
         {row && !current && !failed ? (
@@ -158,48 +133,13 @@ export function HoldingGrowthDialog({
             </dl>
 
             <p className="text-xs leading-6 text-muted-foreground">
-              {current.basis === "trades"
-                ? "مقدار هر روز از خرید و فروش تا همان روز حساب شده و در قیمت همان روز ضرب شده است."
-                : "تراکنشی برای این دارایی ثبت نشده. نمودار با مقدار فعلی و قیمت‌های ذخیره‌شده رسم شده است."}
+              نمودار تعداد فعلی سبد را در قیمت هر روز ضرب می‌کند.
             </p>
-
-            <div className="grid gap-2">
-              <h3 className="text-sm font-medium">خرید و فروش</h3>
-              {trades.length === 0 ? (
-                <p className="text-sm text-muted-foreground">در این بازه خریدی ثبت نشده است.</p>
-              ) : (
-                <>
-                  <p className="text-xs text-muted-foreground">
-                    خرید <span className="numeric">{money(cash(trades, ["buy", "deposit"]), current.unit)}</span>
-                    {" · "}
-                    فروش <span className="numeric">{money(cash(trades, ["sell", "withdraw"]), current.unit)}</span>
-                  </p>
-                  <ul className="grid max-h-56 gap-2 overflow-y-auto">
-                    {trades.map((trade) => (
-                      <li key={trade.id} className="flex items-start justify-between gap-3 text-sm">
-                        <span>
-                          {transactionTypeLabels[trade.type]}
-                          <span className="numeric text-muted-foreground"> · {formatDay(trade.at)}</span>
-                          {trade.note ? <span className="mt-1 block text-xs text-muted-foreground">{trade.note}</span> : null}
-                        </span>
-                        <span className="numeric text-left">
-                          {formatNumber(trade.qty)} × {money(trade.price, current.unit)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
           </div>
         ) : null}
       </DialogContent>
     </Dialog>
   );
-}
-
-function cash(trades: GrowthTrade[], types: TransactionType[]): number {
-  return trades.filter((trade) => types.includes(trade.type)).reduce((sum, trade) => sum + trade.qty * trade.price, 0);
 }
 
 function money(value: number | null, unit: "rial" | "usd"): string {

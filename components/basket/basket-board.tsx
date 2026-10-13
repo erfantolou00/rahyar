@@ -217,7 +217,7 @@ export function BasketBoard({
           <DialogHeader>
             <DialogTitle>حذف دارایی</DialogTitle>
             <DialogDescription>
-              {removing ? `«${removing.cells.name}» و تراکنش‌های وابستهٔ آن حذف می‌شوند.` : ""}
+              {removing ? `«${removing.cells.name}» از سبد حذف می‌شود.` : ""}
             </DialogDescription>
           </DialogHeader>
           {removing ? (

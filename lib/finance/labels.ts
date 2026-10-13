@@ -6,7 +6,6 @@ import type {
   ChatRole,
   NotifyFrequency,
   ReportType,
-  TransactionType,
 } from "@/lib/finance/types";
 
 export const assetTypeLabels: Record<AssetType, string> = {
@@ -19,13 +18,6 @@ export const assetTypeLabels: Record<AssetType, string> = {
   fund: "صندوق",
   loan: "وام",
   real_estate: "ملک",
-};
-
-export const transactionTypeLabels: Record<TransactionType, string> = {
-  buy: "خرید",
-  sell: "فروش",
-  deposit: "واریز",
-  withdraw: "برداشت",
 };
 
 export const reportTypeLabels: Record<ReportType, string> = {

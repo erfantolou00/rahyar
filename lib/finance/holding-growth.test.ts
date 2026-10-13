@@ -18,61 +18,40 @@ describe("shiftDays", () => {
 });
 
 describe("buildHoldingSeries", () => {
-  it("marks the position to market from trades and later quotes", () => {
-    const series = buildHoldingSeries({
-      quantity: 6,
-      trades: [
-        { at: "2026-01-01", type: "buy", qty: 10, price: 100 },
-        { at: "2026-01-10", type: "sell", qty: 4, price: 150 },
-      ],
-      quotes: [
-        { at: "2026-01-01", price: 100 },
-        { at: "2026-01-05", price: 120 },
-        { at: "2026-01-10", price: 140 },
-        { at: "2026-01-20", price: 200 },
-      ],
-    });
-
-    expect(series.basis).toBe("trades");
-    expect(series.points).toEqual([
-      { at: "2026-01-01", value: 1000 },
-      { at: "2026-01-05", value: 1200 },
-      { at: "2026-01-10", value: 840 },
-      { at: "2026-01-20", value: 1200 },
-    ]);
-  });
-
-  it("drops to zero after the position is closed and does not keep drawing zeros", () => {
-    const series = buildHoldingSeries({
-      quantity: 0,
-      trades: [
-        { at: "2026-01-01", type: "buy", qty: 2, price: 50 },
-        { at: "2026-01-03", type: "sell", qty: 2, price: 80 },
-      ],
-      quotes: [
-        { at: "2026-01-04", price: 90 },
-        { at: "2026-01-05", price: 95 },
-      ],
-    });
-
-    expect(series.points.map((point) => point.value)).toEqual([100, 0]);
-  });
-
-  it("uses the current quantity when there are no trades", () => {
-    const series = buildHoldingSeries({
-      quantity: 2,
-      trades: [],
-      quotes: [
-        { at: "2026-02-01", price: 100 },
-        { at: "2026-02-02", price: 150 },
-      ],
-    });
-
-    expect(series.basis).toBe("quantity");
-    expect(series.points).toEqual([
+  it("multiplies the basket quantity by each stored daily price", () => {
+    expect(
+      buildHoldingSeries({
+        quantity: 2,
+        quotes: [
+          { at: "2026-02-01", price: 100 },
+          { at: "2026-02-02", price: 150 },
+        ],
+      }),
+    ).toEqual([
       { at: "2026-02-01", value: 200 },
       { at: "2026-02-02", value: 300 },
     ]);
+  });
+
+  it("keeps the last price stored for a day", () => {
+    expect(
+      buildHoldingSeries({
+        quantity: 1,
+        quotes: [
+          { at: "2026-02-01T08:00:00.000Z", price: 100 },
+          { at: "2026-02-01T18:00:00.000Z", price: 140 },
+        ],
+      }),
+    ).toEqual([{ at: "2026-02-01", value: 140 }]);
+  });
+
+  it("returns no points when the basket quantity is zero", () => {
+    expect(
+      buildHoldingSeries({
+        quantity: 0,
+        quotes: [{ at: "2026-02-01", price: 100 }],
+      }),
+    ).toEqual([]);
   });
 });
 

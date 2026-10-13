@@ -21,35 +21,35 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f4f6fc;
-  --foreground: #14182b;
-  --card: #ffffff;
-  --card-foreground: #14182b;
-  --popover: #ffffff;
-  --popover-foreground: #14182b;
-  --primary: #4f46e5;
-  --primary-foreground: #f7f7ff;
-  --secondary: #e8e7ff;
-  --secondary-foreground: #1e1b4b;
-  --muted: #eef1f8;
-  --muted-foreground: #5c657a;
-  --accent: #e7e9ff;
-  --accent-foreground: #4338ca;
-  --destructive: #e11d48;
-  --border: #e2e7f3;
-  --input: #e2e7f3;
-  --ring: #6366f1;
-  --line: #e2e7f3;
-  --accent-soft: #ecebff;
-  --brand-2: #0d9488;
-  --ok: #059669;
-  --warn: #d97706;
-  --danger: #e11d48;
-  --chart-1: #4f46e5;
-  --chart-2: #0d9488;
-  --chart-3: #f59e0b;
-  --chart-4: #ec4899;
-  --chart-5: #6366f1;
+  --background: #f3efe6;
+  --foreground: #2a332e;
+  --card: #fffdf8;
+  --card-foreground: #2a332e;
+  --popover: #fffdf8;
+  --popover-foreground: #2a332e;
+  --primary: #3e6b5c;
+  --primary-foreground: #f6fbf8;
+  --secondary: #e6eee8;
+  --secondary-foreground: #24352e;
+  --muted: #efe8dc;
+  --muted-foreground: #6a736d;
+  --accent: #e4efe8;
+  --accent-foreground: #2f5648;
+  --destructive: #b55245;
+  --border: #e3dacb;
+  --input: #e3dacb;
+  --ring: #6d9a88;
+  --line: #e6ddd0;
+  --accent-soft: #e8f1eb;
+  --brand-2: #7d9a84;
+  --ok: #2f7d62;
+  --warn: #b5812e;
+  --danger: #b55245;
+  --chart-1: #3e6b5c;
+  --chart-2: #7d9a6a;
+  --chart-3: #c4a574;
+  --chart-4: #8a7d9a;
+  --chart-5: #6a8f96;
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -112,8 +112,15 @@
 
 body {
   background:
-    radial-gradient(980px 460px at 100% -12%, #ddd8ff 0%, transparent 58%),
-    radial-gradient(720px 380px at -8% -6%, #c8f3ea 0%, transparent 52%),
+    radial-gradient(1100px 480px at 100% -16%, #e4efe6 0%, transparent 62%),
+    radial-gradient(820px 420px at -6% -8%, #f3e6cf 0%, transparent 58%),
+    var(--background);
+}
+
+.dark body {
+  background:
+    radial-gradient(900px 420px at 100% -12%, #24362f 0%, transparent 62%),
+    radial-gradient(700px 360px at 0% -8%, #2a261c 0%, transparent 58%),
     var(--background);
 }
 
@@ -126,7 +133,7 @@ body {
   width: 100%;
   border-radius: 0.85rem;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--card);
   padding: 0.65rem 0.8rem;
   outline: none;
 }
@@ -165,35 +172,35 @@ table tbody tr:hover td {
 }
 
 .dark {
-  --background: #0e1220;
-  --foreground: #eef1fb;
-  --card: #171c2e;
-  --card-foreground: #eef1fb;
-  --popover: #171c2e;
-  --popover-foreground: #eef1fb;
-  --primary: #a5b4fc;
-  --primary-foreground: #1e1b4b;
-  --secondary: #242a42;
-  --secondary-foreground: #eef1fb;
-  --muted: #242a42;
-  --muted-foreground: #a3adc4;
-  --accent: #242a42;
-  --accent-foreground: #eef1fb;
-  --destructive: #fb7185;
-  --border: rgb(255 255 255 / 10%);
-  --input: rgb(255 255 255 / 14%);
-  --ring: #818cf8;
-  --line: rgb(255 255 255 / 10%);
-  --accent-soft: #2a2450;
-  --brand-2: #5eead4;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --danger: #fb7185;
-  --chart-1: #a5b4fc;
-  --chart-2: #5eead4;
-  --chart-3: #fbbf24;
-  --chart-4: #f472b6;
-  --chart-5: #818cf8;
+  --background: #141816;
+  --foreground: #e7eee9;
+  --card: #1c221f;
+  --card-foreground: #e7eee9;
+  --popover: #1c221f;
+  --popover-foreground: #e7eee9;
+  --primary: #9ec9b8;
+  --primary-foreground: #14241e;
+  --secondary: #262e2a;
+  --secondary-foreground: #e7eee9;
+  --muted: #262e2a;
+  --muted-foreground: #a8b4ad;
+  --accent: #2a3530;
+  --accent-foreground: #d5ebe2;
+  --destructive: #e7a196;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
+  --ring: #7eae9c;
+  --line: rgb(232 224 210 / 10%);
+  --accent-soft: #24302b;
+  --brand-2: #c9b896;
+  --ok: #7dcaa8;
+  --warn: #e2c07a;
+  --danger: #e7a196;
+  --chart-1: #9ec9b8;
+  --chart-2: #8fb48a;
+  --chart-3: #e2c07a;
+  --chart-4: #c4b4d4;
+  --chart-5: #8fb4bc;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -202,6 +209,10 @@ table tbody tr:hover td {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+[data-slot="card"] {
+  box-shadow: 0 1px 1px rgb(42 51 46 / 0.04), 0 12px 32px -20px rgb(62 107 92 / 0.16);
 }
 
 @layer base {
