@@ -15,7 +15,7 @@ export function MacroPanel({
   return (
     <Panel title="ماکرو">
       {empty ? (
-        <EmptyState>هنوز عددی از FRED ذخیره نشده است. کرون هفتگی این سه شاخص را به‌روز می‌کند.</EmptyState>
+        <EmptyState>هنوز عددی از FRED ذخیره نشده است. سرور این شاخص‌ها را ذخیره می‌کند و این صفحه فقط همان عددها را نشان می‌دهد.</EmptyState>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-3">
           {cards.map((card) => {

@@ -3,10 +3,15 @@ import type { FinanceClient } from "@/lib/finance/queries";
 import { isBtcQuotedInRial } from "@/lib/finance/prices/btc";
 import { liveSymbols } from "@/lib/finance/prices/match";
 import { refreshAllPrices } from "@/lib/finance/prices/refresh";
+import { isListedSession } from "@/lib/finance/prices/session";
 
 const FRESH_FOR_MS = 15 * 60 * 1000;
 
-export async function ensureLivePrices(supabase: FinanceClient, userId: string): Promise<{ refreshed: boolean }> {
+export async function ensureLivePrices(
+  supabase: FinanceClient,
+  userId: string,
+  now = new Date(),
+): Promise<{ refreshed: boolean }> {
   try {
     const latest = await Promise.all(
       liveSymbols.map((symbol) =>
@@ -37,15 +42,15 @@ export async function ensureLivePrices(supabase: FinanceClient, userId: string):
     }
     const fresh = liveSymbols.every((symbol) => {
       const stamp = newest.get(symbol)?.timestamp;
-      return stamp != null && Date.now() - new Date(stamp).getTime() < FRESH_FOR_MS;
+      return stamp != null && now.getTime() - new Date(stamp).getTime() < FRESH_FOR_MS;
     });
     const btc = newest.get("BTC");
     const btcStillInRial = btc != null && isBtcQuotedInRial(btc.price);
     const btcFromTether = btc != null && /^(nobitex|binance|coingecko):/.test(btc.source);
-    const listedStale = await heldListedPricesStale(supabase, userId);
+    const listedStale = isListedSession(now) ? await heldListedPricesStale(supabase, userId, now) : false;
     const shouldRefresh = !fresh || btcStillInRial || (btc != null && !btcFromTether) || listedStale;
     if (!shouldRefresh) return { refreshed: false };
-    const report = await refreshAllPrices(supabase, userId);
+    const report = await refreshAllPrices(supabase, userId, now);
     return { refreshed: report.stored.length > 0 };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -54,7 +59,7 @@ export async function ensureLivePrices(supabase: FinanceClient, userId: string):
   }
 }
 
-async function heldListedPricesStale(supabase: FinanceClient, userId: string): Promise<boolean> {
+async function heldListedPricesStale(supabase: FinanceClient, userId: string, now: Date): Promise<boolean> {
   const assets = await supabase.from("assets").select("type,symbol").eq("user_id", userId).in("type", ["stock", "fund"]);
   if (assets.error) {
     console.error(`[prices] listed read failed: ${assets.error.message}`);
@@ -92,6 +97,6 @@ async function heldListedPricesStale(supabase: FinanceClient, userId: string): P
 
   return newest.some((row) => {
     const stamp = row.data?.timestamp;
-    return stamp == null || Date.now() - new Date(stamp).getTime() >= FRESH_FOR_MS;
+    return stamp == null || now.getTime() - new Date(stamp).getTime() >= FRESH_FOR_MS;
   });
 }

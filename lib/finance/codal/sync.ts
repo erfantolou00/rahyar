@@ -1,5 +1,4 @@
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
-import { userIdFromClaims } from "@/lib/supabase/env";
 import type { FinanceClient, LoadResult } from "@/lib/finance/queries";
 import { fetchListedQuote } from "@/lib/finance/prices/listed";
 import { fetchCodalLetters, fetchCodalReport } from "@/lib/finance/codal/fetch";
@@ -117,7 +116,12 @@ export async function syncSymbolFundamentals(
   userId: string,
   symbol: string,
 ): Promise<LoadResult<CodalSnapshot>> {
-  const existing = await supabase.from("stock_fundamentals").select("*").eq("symbol", symbol).maybeSingle();
+  const existing = await supabase
+    .from("stock_fundamentals")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("symbol", symbol)
+    .maybeSingle();
   if (existing.error) {
     console.error(existing.error);
     return { ok: false, missingSchema: schemaGap(existing.error) };
@@ -203,6 +207,7 @@ export async function syncSymbolFundamentals(
       : `گزارش جدید کدال برای ${symbol} منتشر شد.`;
     const message = clip(`${lead} ${newest.title}`, 500);
     const inserted = await supabase.from("alerts").insert({
+      user_id: userId,
       kind: CODAL_NOTICE_KIND,
       asset_type: "stock",
       rule,
@@ -239,13 +244,9 @@ export async function syncSymbolFundamentals(
   };
 }
 
-export async function ensureStockFundamentals(supabase: FinanceClient): Promise<void> {
+export async function ensureStockFundamentals(supabase: FinanceClient, userId: string): Promise<void> {
   try {
-    const { data } = await supabase.auth.getClaims();
-    const userId = userIdFromClaims(data?.claims);
-    if (!userId) return;
-
-    const assets = await supabase.from("assets").select("symbol").eq("type", "stock");
+    const assets = await supabase.from("assets").select("symbol").eq("user_id", userId).eq("type", "stock");
     if (assets.error || !assets.data?.length) {
       if (assets.error) console.error(assets.error);
       return;
@@ -256,6 +257,7 @@ export async function ensureStockFundamentals(supabase: FinanceClient): Promise<
     const stored = await supabase
       .from("stock_fundamentals")
       .select("symbol,fetched_at,shape_error")
+      .eq("user_id", userId)
       .in("symbol", symbols);
     if (stored.error) {
       console.error(stored.error);

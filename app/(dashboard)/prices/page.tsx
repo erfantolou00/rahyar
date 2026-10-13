@@ -26,7 +26,7 @@ export default async function PricesPage({
     <div>
       <PageHeader
         title="قیمت‌ها"
-        description="هر قیمت متعلق به همین حساب است. آخرین قیمت هر نماد در ارزش دفتر استفاده می‌شود. اگر قیمت‌ها کهنه باشند، بعد از نمایش صفحه در پس‌زمینه تازه می‌شوند."
+        description="هر قیمت متعلق به همین حساب است. آخرین قیمت ذخیره‌شده در ارزش دفتر استفاده می‌شود. سهام شنبه تا چهارشنبه ساعت ۹ تا ۱۳ روی سرور ثبت می‌شود و این صفحه منتظر قیمت جدید نمی‌ماند."
         action={<RefreshPricesButton returnTo="/prices" />}
       />
       <Notice message={errorMessage(params.error)} />

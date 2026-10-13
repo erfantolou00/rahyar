@@ -1,6 +1,5 @@
 import type { FinanceClient } from "@/lib/finance/queries";
 import type { Json } from "@/lib/finance/types";
-import { userIdFromClaims } from "@/lib/supabase/env";
 import { fetchText } from "@/lib/finance/prices/tgju";
 import { matchListedSymbol, parseTsetmcSearch } from "@/lib/finance/prices/listed";
 import { fetchRahavardProfile, type RahavardProfile } from "@/lib/finance/prices/rahavard";
@@ -169,13 +168,9 @@ async function mapPool(symbols: string[], limit: number, run: (symbol: string) =
   await Promise.all(workers);
 }
 
-export async function ensureMarketReports(supabase: FinanceClient, now = new Date()): Promise<void> {
+export async function ensureMarketReports(supabase: FinanceClient, userId: string, now = new Date()): Promise<void> {
   try {
-    const { data } = await supabase.auth.getClaims();
-    const userId = userIdFromClaims(data?.claims);
-    if (!userId) return;
-
-    const assets = await supabase.from("assets").select("symbol").eq("type", "stock");
+    const assets = await supabase.from("assets").select("symbol").eq("user_id", userId).eq("type", "stock");
     if (assets.error || !assets.data?.length) {
       if (assets.error) console.error(assets.error);
       return;
@@ -183,7 +178,11 @@ export async function ensureMarketReports(supabase: FinanceClient, now = new Dat
     const symbols = [...new Set(assets.data.map((row) => row.symbol.trim()).filter(Boolean))];
     if (symbols.length === 0) return;
 
-    const stored = await supabase.from("stock_fundamentals").select("symbol,market_report").in("symbol", symbols);
+    const stored = await supabase
+      .from("stock_fundamentals")
+      .select("symbol,market_report")
+      .eq("user_id", userId)
+      .in("symbol", symbols);
     if (stored.error) {
       console.error(stored.error);
       return;
@@ -204,7 +203,7 @@ export async function ensureMarketReports(supabase: FinanceClient, now = new Dat
       const report = await fetchMarketReport(symbol, now);
       const existing = bySymbol.has(symbol);
       const saved = existing
-        ? await supabase.from("stock_fundamentals").update({ market_report: report }).eq("symbol", symbol)
+        ? await supabase.from("stock_fundamentals").update({ market_report: report }).eq("user_id", userId).eq("symbol", symbol)
         : await supabase.from("stock_fundamentals").insert({
             user_id: userId,
             symbol,

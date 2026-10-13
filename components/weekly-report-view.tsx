@@ -70,7 +70,7 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
       </section>
 
       <section className="surface p-4">
-        <h2 className="mb-4 text-base font-semibold">هشدارهای این هفته</h2>
+        <h2 className="mb-4 text-base font-semibold">هشدارها و انحراف‌های جاری</h2>
         {content.alerts.length === 0 ? (
           <EmptyState>در این هفته هشداری ثبت نشده است.</EmptyState>
         ) : (

@@ -4,11 +4,9 @@ import type { AllocationDeviation } from "@/lib/finance/allocation-deviation";
 export function AllocationDeviationPanel({
   deviations,
   ready,
-  saveState,
 }: {
   deviations: AllocationDeviation[];
   ready: boolean;
-  saveState: "saved" | "missing" | "failed";
 }) {
   const flagged = ready && deviations.length > 0;
 
@@ -46,16 +44,6 @@ export function AllocationDeviationPanel({
       ) : (
         <p className="mt-4 text-sm leading-7">بازه‌های تخصیص خوانده نشد، پس انحرافی محاسبه نشده است.</p>
       )}
-      {saveState === "missing" ? (
-        <p className="mt-3 text-sm leading-7 text-danger">
-          پیشنهادها همین‌جا دیده می‌شوند، ولی رکورد هشدار ذخیره نشد. migration جدول alerts را اجرا کنید.
-        </p>
-      ) : null}
-      {saveState === "failed" ? (
-        <p className="mt-3 text-sm leading-7 text-danger">
-          ثبت رکورد هشدار انجام نشد. متن پیشنهاد همچنان فقط برای دیدن است و هیچ معامله‌ای ساخته نمی‌شود.
-        </p>
-      ) : null}
     </section>
   );
 }

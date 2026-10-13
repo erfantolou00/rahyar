@@ -65,7 +65,17 @@ describe("buildWeeklyReport", () => {
       now,
       snapshot: snapshot(150, 150),
       previous: null,
-      alerts: [alert(), alert({ id: "old", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false })],
+      alerts: [
+        alert(),
+        alert({ id: "old-rule", kind: "rule", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false }),
+        alert({
+          id: "standing",
+          created_at: "2026-09-01T00:00:00.000Z",
+          sent_at: "2026-09-02T00:00:00.000Z",
+          sent: true,
+        }),
+        alert({ id: "closed", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false, is_active: false }),
+      ],
     });
 
     expect(report.commentary).toBeNull();
@@ -76,7 +86,7 @@ describe("buildWeeklyReport", () => {
       change_percent: null,
     });
     expect(report.assets[0]).toMatchObject({ pnl_value: null, pnl_percent: null });
-    expect(report.alerts.map((item) => item.id)).toEqual(["alert-1"]);
+    expect(report.alerts.map((item) => item.id)).toEqual(["alert-1", "standing"]);
     expect(report.weights[0]).toMatchObject({ status: "above", gap_percent: 20 });
   });
 

@@ -4,7 +4,7 @@ import { AllocationDeviationPanel } from "@/components/allocation-deviation-pane
 import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { MacroPanel } from "@/components/macro-panel";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
-import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
+import { deviationsForSnapshot } from "@/lib/finance/allocation-alerts";
 import { formatNumber, formatPercent } from "@/lib/finance/format";
 import { presentMacro } from "@/lib/finance/macro/present";
 import { allocationStatusLabels, assetTypeLabels } from "@/lib/finance/labels";
@@ -22,7 +22,7 @@ import { requireSession } from "@/lib/supabase/auth";
 export const metadata: Metadata = { title: "نمای کلی" };
 
 export default async function OverviewPage() {
-  const { supabase, userId } = await requireSession();
+  const { supabase } = await requireSession();
   const [portfolio, alerts, allocationRows, macroRows] = await Promise.all([
     loadPortfolio(supabase),
     readRows<Alert>(supabase.from("alerts").select("*").eq("is_active", true)),
@@ -37,14 +37,6 @@ export default async function OverviewPage() {
   const deviations = allocationRows.ok
     ? deviationsForSnapshot(portfolio.data, allocationRows.data)
     : [];
-  const saved = allocationRows.ok ? await syncAllocationDeviationAlerts(supabase, userId, deviations) : null;
-  const saveState = !allocationRows.ok
-    ? "saved"
-    : saved?.ok
-      ? "saved"
-      : saved?.missingSchema
-        ? "missing"
-        : "failed";
   const activeRules = alerts.ok
     ? alerts.data.filter((alert) => alert.kind !== "allocation_deviation")
     : null;
@@ -55,13 +47,12 @@ export default async function OverviewPage() {
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، بعد از نمایش صفحه در پس‌زمینه تازه می‌شوند."
+        description="ارزش دفتر از آخرین قیمت ذخیره‌شده حساب می‌شود. قیمت، انحراف، کدال و ماکرو روی سرور به‌روز می‌شوند و باز کردن این صفحه منتظر قیمت جدید نمی‌ماند."
         action={<RefreshPricesButton returnTo="/" />}
       />
       <AllocationDeviationPanel
         deviations={deviations}
         ready={allocationRows.ok}
-        saveState={saveState}
       />
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <Panel title="ارزش کل">

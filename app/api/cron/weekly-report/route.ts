@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { interpretWeeklyReport } from "@/lib/ai/interpret-weekly";
 import { cronAuthorized } from "@/lib/cron/auth";
+import { assetOwnerIds } from "@/lib/cron/owners";
 import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -19,13 +20,8 @@ async function run(request: Request) {
   const supabase = createServiceClient();
   if (!supabase) return NextResponse.json({ error: "unavailable" }, { status: 503 });
 
-  const owners = await supabase.from("assets").select("user_id");
-  if (owners.error) {
-    console.error(owners.error);
-    return NextResponse.json({ error: "unavailable" }, { status: 503 });
-  }
-
-  const userIds = [...new Set((owners.data ?? []).map((row) => row.user_id))];
+  const userIds = await assetOwnerIds(supabase);
+  if (!userIds) return NextResponse.json({ error: "unavailable" }, { status: 503 });
   let created = 0;
   let skipped = 0;
   let failed = 0;

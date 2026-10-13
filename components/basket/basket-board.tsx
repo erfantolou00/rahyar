@@ -5,10 +5,10 @@ import { useFormStatus } from "react-dom";
 import { LineChart } from "lucide-react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
 import { AssetFields } from "@/components/basket/asset-fields";
-import { FundamentalsLoader } from "@/components/basket/fundamentals-loader";
+import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
 import { HoldingGrowthDialog } from "@/components/holding-growth-dialog";
 import { basketColumns, emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
-import type { PresentedMark, PresentedRow, ValueTone } from "@/lib/finance/basket-view";
+import type { PresentedFundamental, PresentedMark, PresentedRow, ValueTone } from "@/lib/finance/basket-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -42,6 +42,8 @@ export function BasketBoard({
   totalAbsolute,
   totalPercent,
   totalTone,
+  fundamentals,
+  fundamentalsSchema,
 }: {
   marks: PresentedMark[];
   rows: PresentedRow[];
@@ -49,6 +51,8 @@ export function BasketBoard({
   totalAbsolute: string;
   totalPercent: string;
   totalTone: ValueTone;
+  fundamentals: PresentedFundamental[];
+  fundamentalsSchema: boolean | null;
 }) {
   const [editing, setEditing] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
@@ -98,7 +102,7 @@ export function BasketBoard({
       </div>
 
       <div className={tab === "fundamentals" ? "grid gap-4" : "hidden"}>
-        <FundamentalsLoader enabled={tab === "fundamentals"} />
+        <FundamentalsPanel rows={fundamentals} schemaIssue={fundamentalsSchema} />
       </div>
 
       {tab === "holdings" ? (

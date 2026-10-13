@@ -1,6 +1,7 @@
 import { readSalesTrend } from "@/lib/finance/codal/parse";
 import { readMarketReport } from "@/lib/finance/prices/market-report";
 import { priceAge } from "@/lib/finance/prices/age";
+import { listedQuoteStale } from "@/lib/finance/prices/session";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { formatDollar, formatMoney, formatNumber, formatPercent, formatQuantity, plainNumber, toNumber } from "@/lib/finance/format";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
@@ -240,7 +241,12 @@ function presentRow(row: BasketRow): PresentedRow {
     id: row.id,
     tone: toneOf(row.absolute),
     updatedLabel,
-    stale: row.priceOrigin === "live" && Boolean(age?.stale),
+    stale:
+      row.priceOrigin === "live" &&
+      row.quotedAt != null &&
+      ((row.type === "stock" || row.type === "fund")
+        ? listedQuoteStale(row.quotedAt, new Date())
+        : Boolean(age?.stale)),
     values: {
       type: row.type,
       symbol: row.name,

@@ -45,6 +45,7 @@ const liveSymbols = ["USD", "GOLD18", "BTC"] as const;
 export async function loadLatestPrices(
   supabase: FinanceClient,
   assets: Pick<Asset, "type" | "symbol">[],
+  userId?: string,
 ): Promise<LoadResult<Price[]>> {
   const assetKeys = new Map<string, { type: Asset["type"]; symbol: string }>();
   for (const asset of assets) {
@@ -55,27 +56,22 @@ export async function loadLatestPrices(
 
   const [assetResults, liveResults] = await Promise.all([
     Promise.all(
-      [...assetKeys.values()].map((key) =>
-        supabase
+      [...assetKeys.values()].map((key) => {
+        let query = supabase
           .from("prices")
           .select("*")
           .eq("asset_type", key.type)
-          .eq("symbol", key.symbol)
-          .order("timestamp", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ),
+          .eq("symbol", key.symbol);
+        if (userId) query = query.eq("user_id", userId);
+        return query.order("timestamp", { ascending: false }).limit(1).maybeSingle();
+      }),
     ),
     Promise.all(
-      liveSymbols.map((symbol) =>
-        supabase
-          .from("prices")
-          .select("*")
-          .eq("symbol", symbol)
-          .order("timestamp", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ),
+      liveSymbols.map((symbol) => {
+        let query = supabase.from("prices").select("*").eq("symbol", symbol);
+        if (userId) query = query.eq("user_id", userId);
+        return query.order("timestamp", { ascending: false }).limit(1).maybeSingle();
+      }),
     ),
   ]);
 

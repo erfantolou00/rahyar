@@ -1,12 +1,24 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/weekly-report",
-      "schedule": "30 16 * * 5"
-    },
-    {
-      "path": "/api/cron/macro",
-      "schedule": "0 13 * * 1"
-    }
+    { "path": "/api/cron/prices?m=0530", "schedule": "30 5 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0545", "schedule": "45 5 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0600", "schedule": "0 6 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0615", "schedule": "15 6 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0630", "schedule": "30 6 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0645", "schedule": "45 6 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0700", "schedule": "0 7 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0715", "schedule": "15 7 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0730", "schedule": "30 7 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0745", "schedule": "45 7 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0800", "schedule": "0 8 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0815", "schedule": "15 8 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0830", "schedule": "30 8 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0845", "schedule": "45 8 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0900", "schedule": "0 9 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=0915", "schedule": "15 9 * * 0,1,2,3,6" },
+    { "path": "/api/cron/prices?m=evening", "schedule": "0 16 * * *" },
+    { "path": "/api/cron/codal", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/weekly-report", "schedule": "30 16 * * 5" },
+    { "path": "/api/cron/macro", "schedule": "0 13 * * 1" }
   ]
 }

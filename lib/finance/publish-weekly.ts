@@ -1,8 +1,8 @@
 import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
 import { buildPortfolio } from "@/lib/finance/portfolio";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
-import { readRows, type FinanceClient } from "@/lib/finance/queries";
-import type { Alert, Allocation, Asset, Price } from "@/lib/finance/types";
+import { loadLatestPrices, readRows, type FinanceClient } from "@/lib/finance/queries";
+import type { Alert, Allocation, Asset } from "@/lib/finance/types";
 import {
   baselineWeekly,
   buildWeeklyReport,
@@ -35,7 +35,8 @@ function schemaGap(error: { code?: string; message?: string } | null): boolean {
 }
 
 /**
- * Refreshes that user's prices, stores allocation deviations, then writes one numeric weekly report.
+ * Refreshes that user's stored prices and writes allocation deviations even when the weekly row already exists.
+ * A new numeric report is inserted only when the previous one is old enough, or when force is set.
  * Phase 6 should update `commentary` on the saved row afterwards, through withCommentary.
  */
 export async function publishWeeklyReport(
@@ -55,23 +56,18 @@ export async function publishWeeklyReport(
   );
   if (!reports.ok) return reports;
 
-  const latest = [...reports.data].sort(
-    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
-  )[0];
-  if (!options?.force && !shouldCreateWeekly(latest?.created_at ?? null, now)) {
-    return { ok: true, status: "skipped" };
-  }
+  await ensureLivePrices(supabase, userId, now);
 
-  await ensureLivePrices(supabase, userId);
-
-  const [assets, prices, allocations] = await Promise.all([
+  const [assets, allocations] = await Promise.all([
     readRows<Asset>(supabase.from("assets").select("*").eq("user_id", userId)),
-    readRows<Price>(supabase.from("prices").select("*").eq("user_id", userId)),
     readRows<Allocation>(supabase.from("allocations").select("*").eq("user_id", userId)),
   ]);
-  const failed = [assets, prices, allocations].find((result) => !result.ok);
+  const failed = [assets, allocations].find((result) => !result.ok);
   if (failed && !failed.ok) return failed;
-  if (!assets.ok || !prices.ok || !allocations.ok) return { ok: false, missingSchema: false };
+  if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
+
+  const prices = await loadLatestPrices(supabase, assets.data, userId);
+  if (!prices.ok) return prices;
 
   const snapshot = buildPortfolio(assets.data, prices.data, allocations.data);
   const synced = await syncAllocationDeviationAlerts(
@@ -82,6 +78,13 @@ export async function publishWeeklyReport(
   if (!synced.ok) {
     if (synced.missingSchema) return synced;
     console.error("Allocation deviations were not saved before the weekly report");
+  }
+
+  const latest = [...reports.data].sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  )[0];
+  if (!options?.force && !shouldCreateWeekly(latest?.created_at ?? null, now)) {
+    return { ok: true, status: "skipped" };
   }
 
   const alerts = await readRows<Alert>(supabase.from("alerts").select("*").eq("user_id", userId));

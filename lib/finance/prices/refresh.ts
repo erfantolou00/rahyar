@@ -2,14 +2,18 @@ import type { FinanceClient } from "@/lib/finance/queries";
 import { fetchListedQuote } from "@/lib/finance/prices/listed";
 import { normalizeSymbol } from "@/lib/finance/prices/match";
 import { fetchMarketQuotes, type MarketQuote } from "@/lib/finance/prices/quotes";
+import { isListedSession } from "@/lib/finance/prices/session";
 
 export type RefreshReport = {
   stored: string[];
   missed: string[];
 };
 
-export async function refreshAllPrices(writer: FinanceClient, userId: string): Promise<RefreshReport> {
-  const [quotes, listed] = await Promise.all([fetchMarketQuotes(), refreshHeldListedPrices(writer, userId)]);
+export async function refreshAllPrices(writer: FinanceClient, userId: string, now = new Date()): Promise<RefreshReport> {
+  const listedPromise = isListedSession(now)
+    ? refreshHeldListedPrices(writer, userId)
+    : Promise.resolve({ stored: [] as string[], missed: [] as string[] });
+  const [quotes, listed] = await Promise.all([fetchMarketQuotes(), listedPromise]);
   const market = await storeQuotes(quotes, writer, userId);
   return {
     stored: [...market.stored, ...listed.stored],

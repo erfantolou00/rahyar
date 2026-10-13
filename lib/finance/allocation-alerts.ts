@@ -37,6 +37,7 @@ export function deviationShouldRequeue(
 ): boolean {
   if (changed) return true;
   if (!sent) return false;
+  if (frequency === "immediate") return false;
   return deliveryDecision(frequency, sentAt, now) === "send";
 }
 

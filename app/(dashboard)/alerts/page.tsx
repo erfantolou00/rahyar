@@ -68,7 +68,7 @@ export default async function AlertsPage({
     <div>
       <PageHeader
         title="هشدارها"
-        description="انحراف تخصیص و خبر کدال، با تناوبی که اینجا می‌گذارید، به بله و اعلان مرورگر می‌رود."
+        description="انحراف تخصیص و خبر کدال روی سرور بررسی می‌شوند و با تناوبی که اینجا می‌گذارید به بله و اعلان مرورگر می‌روند، حتی اگر این صفحه باز نباشد."
       />
       <Notice message={errorMessage(params.error)} />
       {deliveryNote ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{deliveryNote}</p> : null}

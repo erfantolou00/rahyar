@@ -144,7 +144,15 @@ export function buildWeeklyReport(input: {
   const alerts: WeeklyAlert[] = input.alerts.flatMap((alert) => {
     const createdIn = inRange(alert.created_at, from, to);
     const sentIn = inRange(alert.sent_at, from, to);
-    if (!createdIn && !sentIn) return [];
+    const standingDeviation = alert.kind === "allocation_deviation" && alert.is_active;
+    if (!createdIn && !sentIn && !standingDeviation) return [];
+    const triggeredAt = sentIn && alert.sent_at
+      ? alert.sent_at
+      : createdIn
+        ? alert.created_at
+        : alert.sent_at && Date.parse(alert.sent_at) >= Date.parse(alert.created_at)
+          ? alert.sent_at
+          : alert.created_at;
     return [
       {
         id: alert.id,
@@ -154,7 +162,7 @@ export function buildWeeklyReport(input: {
         asset_type: alert.asset_type,
         threshold: toNumber(alert.threshold),
         created_at: alert.created_at,
-        triggered_at: createdIn ? alert.created_at : (alert.sent_at as string),
+        triggered_at: triggeredAt,
         is_active: alert.is_active,
       },
     ];

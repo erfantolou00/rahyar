@@ -23,4 +23,9 @@ describe("deviationShouldRequeue", () => {
   it("does not repeat while the kind is off", () => {
     expect(deviationShouldRequeue(true, "2026-09-29T16:59:00.000Z", "off", now, false)).toBe(false);
   });
+
+  it("sends an unchanged immediate deviation once", () => {
+    expect(deviationShouldRequeue(true, now.toISOString(), "immediate", now, false)).toBe(false);
+    expect(deviationShouldRequeue(true, now.toISOString(), "immediate", now, true)).toBe(true);
+  });
 });
