@@ -28,10 +28,15 @@ export function WeeklyReportView({ content }: { content: WeeklyReportContent }) 
           <p className="numeric mt-2 text-2xl font-semibold">{formatMoney(content.portfolio.total_value)}</p>
         </section>
         <section className="surface p-4">
-          <h2 className="text-sm text-muted-foreground">تغییر نسبت به هفته قبل</h2>
+          <h2 className="text-sm text-muted-foreground">سود قیمت نسبت به هفته قبل</h2>
           <p className={`numeric mt-2 text-2xl font-semibold ${tone(content.portfolio.change_value)}`}>
             {formatWeekChange(content.portfolio.change_value, content.portfolio.change_percent)}
           </p>
+          {content.portfolio.flow_value !== 0 ? (
+            <p className="numeric mt-2 text-sm text-muted-foreground">
+              پول وارد یا خارج شده: {formatWeekChange(content.portfolio.flow_value, null)}
+            </p>
+          ) : null}
         </section>
       </div>
 

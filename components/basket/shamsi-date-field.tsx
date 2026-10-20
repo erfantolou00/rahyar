@@ -16,7 +16,15 @@ import {
 
 const weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
 
-export function ShamsiDateField({ name, defaultValue }: { name: string; defaultValue: string }) {
+export function ShamsiDateField({
+  name,
+  defaultValue,
+  label = "تاریخ خرید",
+}: {
+  name: string;
+  defaultValue: string;
+  label?: string;
+}) {
   const labelId = useId();
   const initial = isoToJalali(defaultValue) ?? { jy: 1405, jm: 1, jd: 1 };
   const [iso, setIso] = useState(defaultValue);
@@ -43,7 +51,7 @@ export function ShamsiDateField({ name, defaultValue }: { name: string; defaultV
 
   return (
     <div className="grid gap-1.5">
-      <Label id={labelId}>تاریخ خرید</Label>
+      <Label id={labelId}>{label}</Label>
       <input type="hidden" name={name} value={iso} />
       <button
         type="button"

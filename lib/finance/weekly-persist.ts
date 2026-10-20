@@ -89,6 +89,7 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
       const previousValue = readNullableNumber(asset.previous_value);
       const pnlValue = readNullableNumber(asset.pnl_value);
       const pnlPercent = readNullableNumber(asset.pnl_percent);
+      const flowValue = typeof asset.flow_value === "number" && Number.isFinite(asset.flow_value) ? asset.flow_value : 0;
       if (quantity == null || assetValue == null || previousValue === undefined || pnlValue === undefined || pnlPercent === undefined) {
         continue;
       }
@@ -101,6 +102,7 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
         previous_value: previousValue,
         pnl_value: pnlValue,
         pnl_percent: pnlPercent,
+        flow_value: flowValue,
       });
     }
   }
@@ -165,6 +167,7 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
       previous_total_value: previousTotal,
       change_value: changeValue,
       change_percent: changePercent,
+      flow_value: typeof portfolio.flow_value === "number" && Number.isFinite(portfolio.flow_value) ? portfolio.flow_value : 0,
     },
     assets,
     alerts,

@@ -19,8 +19,8 @@ import type {
   MacroIndicatorRow,
   StockFundamentals,
   ReportType,
-  Transaction,
-  TransactionType,
+  Trade,
+  TradeSide,
   UserSettings,
 } from "@/lib/finance/types";
 
@@ -50,28 +50,26 @@ export type Database = {
         Update: Partial<Asset>;
         Relationships: [];
       };
-      transactions: {
-        Row: Transaction;
+      trades: {
+        Row: Trade;
         Insert: {
           id?: string;
           user_id?: string;
-          asset_id: string;
-          type: TransactionType;
-          qty: Numeric;
-          price: Numeric;
-          date: string;
-          note?: string | null;
+          asset_id?: string | null;
+          asset_type: AssetType;
+          symbol: string;
+          side: TradeSide;
+          quantity: Numeric;
+          price?: Numeric | null;
+          fee?: Numeric;
+          price_unit?: PriceUnit;
+          traded_on: string;
+          settles_cash?: boolean;
+          cash_asset_id?: string | null;
+          created_at?: string;
         };
-        Update: Partial<Transaction>;
-        Relationships: [
-          {
-            foreignKeyName: "transactions_asset_id_fkey";
-            columns: ["asset_id"];
-            isOneToOne: false;
-            referencedRelation: "assets";
-            referencedColumns: ["id"];
-          },
-        ];
+        Update: Partial<Trade>;
+        Relationships: [];
       };
       prices: {
         Row: Price;
@@ -266,7 +264,7 @@ export type Database = {
     };
     Enums: {
       asset_type: AssetType;
-      transaction_type: TransactionType;
+      trade_side: TradeSide;
       report_type: ReportType;
       chat_role: ChatRole;
     };

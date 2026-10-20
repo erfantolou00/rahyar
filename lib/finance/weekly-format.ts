@@ -14,6 +14,7 @@ export function weeklyContentJson(content: WeeklyReportContent): Json {
       previous_total_value: content.portfolio.previous_total_value,
       change_value: content.portfolio.change_value,
       change_percent: content.portfolio.change_percent,
+      flow_value: content.portfolio.flow_value,
     },
     assets: content.assets.map((asset) => ({
       id: asset.id,
@@ -24,6 +25,7 @@ export function weeklyContentJson(content: WeeklyReportContent): Json {
       previous_value: asset.previous_value,
       pnl_value: asset.pnl_value,
       pnl_percent: asset.pnl_percent,
+      flow_value: asset.flow_value,
     })),
     alerts: content.alerts.map((alert) => ({
       id: alert.id,
@@ -94,7 +96,10 @@ export function formatWeeklySummary(content: WeeklyReportContent): string {
   const header = [
     "گزارش هفتگی رهیار",
     `ارزش سبد: ${formatMoney(content.portfolio.total_value)}`,
-    `تغییر نسبت به هفته قبل: ${formatWeekChange(content.portfolio.change_value, content.portfolio.change_percent)}`,
+    `سود قیمت نسبت به هفته قبل: ${formatWeekChange(content.portfolio.change_value, content.portfolio.change_percent)}`,
+    ...(content.portfolio.flow_value === 0
+      ? []
+      : [`پول وارد یا خارج شده: ${formatSignedMoney(content.portfolio.flow_value)}`]),
   ];
   const alertLines = content.alerts.slice(0, 5).map((alert) => {
     const subject = alert.asset_type ? assetTypeLabels[alert.asset_type] : alert.rule;

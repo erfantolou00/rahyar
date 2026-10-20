@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHoldingSeries, dayKey, shiftDays, sliceGrowth } from "@/lib/finance/holding-growth";
+import { buildHoldingSeries, cashFlows, dayKey, shiftDays, sliceGrowth } from "@/lib/finance/holding-growth";
 
 describe("dayKey", () => {
   it("keeps a date-only value", () => {
@@ -17,11 +17,19 @@ describe("shiftDays", () => {
   });
 });
 
+const opening = {
+  day: "2026-01-01",
+  side: "buy" as const,
+  quantity: 2,
+  price: 80,
+  fee: 0,
+};
+
 describe("buildHoldingSeries", () => {
-  it("multiplies the basket quantity by each stored daily price", () => {
+  it("values the shares held on that day", () => {
     expect(
       buildHoldingSeries({
-        quantity: 2,
+        lots: [opening],
         quotes: [
           { at: "2026-02-01", price: 100 },
           { at: "2026-02-02", price: 150 },
@@ -33,10 +41,22 @@ describe("buildHoldingSeries", () => {
     ]);
   });
 
+  it("does not rewrite days before a purchase", () => {
+    expect(
+      buildHoldingSeries({
+        lots: [{ day: "2026-02-02", side: "buy", quantity: 2, price: 150, fee: 0 }],
+        quotes: [
+          { at: "2026-02-01", price: 100 },
+          { at: "2026-02-02", price: 150 },
+        ],
+      }),
+    ).toEqual([{ at: "2026-02-02", value: 300 }]);
+  });
+
   it("keeps the last price stored for a day", () => {
     expect(
       buildHoldingSeries({
-        quantity: 1,
+        lots: [{ ...opening, quantity: 1 }],
         quotes: [
           { at: "2026-02-01T08:00:00.000Z", price: 100 },
           { at: "2026-02-01T18:00:00.000Z", price: 140 },
@@ -45,10 +65,10 @@ describe("buildHoldingSeries", () => {
     ).toEqual([{ at: "2026-02-01", value: 140 }]);
   });
 
-  it("returns no points when the basket quantity is zero", () => {
+  it("returns no points when nothing is held", () => {
     expect(
       buildHoldingSeries({
-        quantity: 0,
+        lots: [],
         quotes: [{ at: "2026-02-01", price: 100 }],
       }),
     ).toEqual([]);
@@ -74,6 +94,18 @@ describe("sliceGrowth", () => {
     const slice = sliceGrowth(points, null, "2026-01-20");
     expect(slice.startValue).toBe(1000);
     expect(slice.changePercent).toBe(20);
+  });
+
+  it("keeps a purchase inside the window out of the price change", () => {
+    const points = [
+      { at: "2026-02-01", value: 200 },
+      { at: "2026-02-02", value: 600 },
+    ];
+    const slice = sliceGrowth(points, null, "2026-02-02", cashFlows([
+      { day: "2026-02-02", side: "buy", quantity: 2, price: 150, fee: 0 },
+    ]));
+    expect(slice.flow).toBe(300);
+    expect(slice.change).toBe(100);
   });
 
   it("returns an empty slice when nothing is known", () => {

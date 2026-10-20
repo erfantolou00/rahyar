@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { LineChart } from "lucide-react";
-import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
+import { createAsset, deleteAsset, sellHolding, updateAsset } from "@/app/(dashboard)/basket/actions";
 import { todayKey } from "@/lib/finance/holding-growth";
 import { AssetFields } from "@/components/basket/asset-fields";
+import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
 import { HoldingGrowthDialog } from "@/components/holding-growth-dialog";
 import { basketColumns, emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
@@ -56,6 +57,7 @@ export function BasketBoard({
   fundamentalsSchema: boolean | null;
 }) {
   const [editing, setEditing] = useState<PresentedRow | null>(null);
+  const [selling, setSelling] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
   const [growth, setGrowth] = useState<PresentedRow | null>(null);
   const [tab, setTab] = useState<"holdings" | "fundamentals">("holdings");
@@ -115,7 +117,7 @@ export function BasketBoard({
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
               <DialogDescription>
-                تاریخ خرید شمسی است. اگر همین سهم یا صندوق را از قبل داشته باشید، تعداد به همان ردیف اضافه می‌شود و قیمت خرید متوسط با خرید جدید دوباره حساب می‌شود. سهام و صندوق از قیمت بازار می‌آیند. برای بقیه، عددِ قیمت فعلی قیمت بازار را قفل می‌کند.
+                برای سهم و صندوق این فرم یک خرید است: اگر همان نماد را داشته باشید، تعداد به همان ردیف اضافه می‌شود و میانگین از دفتر معاملات حساب می‌شود. طلا، دلار و بقیه هنوز ردیف جدا می‌سازند.
               </DialogDescription>
             </DialogHeader>
             <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" includeDate defaultDate={todayKey()} />
@@ -162,7 +164,9 @@ export function BasketBoard({
               }))}
               trailing={{
                 label: "عملیات",
-                render: (row) => <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />,
+                render: (row) => (
+                  <RowActions row={row} onEdit={setEditing} onSell={setSelling} onRemove={setRemoving} />
+                ),
               }}
             />
           </div>
@@ -192,7 +196,7 @@ export function BasketBoard({
                         </span>
                       </div>
                     ))}
-                    <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />
+                    <RowActions row={row} onEdit={setEditing} onSell={setSelling} onRemove={setRemoving} />
                   </CardContent>
                 </Card>
               </li>
@@ -207,7 +211,11 @@ export function BasketBoard({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>ویرایش دارایی</DialogTitle>
-            <DialogDescription>قیمت‌ها با همان مبنای ذخیره‌شده، ریال یا دلار، ویرایش می‌شوند.</DialogDescription>
+            <DialogDescription>
+              {editing && listedRow(editing)
+                ? "تعداد و میانگین سهم و صندوق فقط با خرید و فروش عوض می‌شود."
+                : "قیمت‌ها با همان مبنای ذخیره‌شده، ریال یا دلار، ویرایش می‌شوند."}
+            </DialogDescription>
           </DialogHeader>
           {editing ? (
             <AssetEditor
@@ -216,12 +224,45 @@ export function BasketBoard({
               values={editing.values}
               id={editing.id}
               submitLabel="ذخیره"
+              lockPosition={listedRow(editing)}
             />
           ) : null}
         </DialogContent>
       </Dialog>
 
       <HoldingGrowthDialog row={growth} onClose={() => setGrowth(null)} />
+
+      <Dialog open={selling != null} onOpenChange={(open) => !open && setSelling(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>فروش {selling?.cells.name}</DialogTitle>
+            <DialogDescription>
+              این فروش از مانده کم می‌شود. میانگین خرید سهم‌های باقی‌مانده همان می‌ماند و کارمزد فقط از پول دریافتی کم می‌شود.
+            </DialogDescription>
+          </DialogHeader>
+          {selling ? (
+            <form action={sellHolding} className="grid gap-4">
+              <input type="hidden" name="id" value={selling.id} />
+              <div className="grid gap-1.5">
+                <label htmlFor="sell-quantity" className="text-sm font-medium">تعداد</label>
+                <input id="sell-quantity" name="quantity" required inputMode="decimal" dir="ltr" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </div>
+              <div className="grid gap-1.5">
+                <label htmlFor="sell-price" className="text-sm font-medium">قیمت فروش</label>
+                <input id="sell-price" name="price" required inputMode="decimal" dir="ltr" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </div>
+              <div className="grid gap-1.5">
+                <label htmlFor="sell-fee" className="text-sm font-medium">کارمزد</label>
+                <input id="sell-fee" name="fee" inputMode="decimal" dir="ltr" placeholder="۰" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </div>
+              <ShamsiDateField name="traded_on" defaultValue={todayKey()} label="تاریخ فروش" />
+              <DialogFooter>
+                <SaveButton>ثبت فروش</SaveButton>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={removing != null} onOpenChange={(open) => !open && setRemoving(null)}>
         <DialogContent className="sm:max-w-sm">
@@ -275,23 +316,36 @@ function Summary({ label, value, tone = "flat" }: { label: string; value: string
   );
 }
 
+function listedRow(row: PresentedRow): boolean {
+  return row.values.type === "stock" || row.values.type === "fund";
+}
+
 function RowActions({
   row,
   onEdit,
+  onSell,
   onRemove,
 }: {
   row: PresentedRow;
   onEdit: (row: PresentedRow) => void;
+  onSell: (row: PresentedRow) => void;
   onRemove: (row: PresentedRow) => void;
 }) {
+  const openListed = listedRow(row) && Number(row.values.quantity) > 0;
   return (
     <div className="flex gap-2">
       <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onEdit(row)}>
         ویرایش
       </Button>
-      <Button type="button" variant="destructive" className="h-11 px-4" onClick={() => onRemove(row)}>
-        حذف
-      </Button>
+      {openListed ? (
+        <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onSell(row)}>
+          فروش
+        </Button>
+      ) : (
+        <Button type="button" variant="destructive" className="h-11 px-4" onClick={() => onRemove(row)}>
+          حذف
+        </Button>
+      )}
     </div>
   );
 }
@@ -303,6 +357,7 @@ function AssetEditor({
   id,
   includeDate = false,
   defaultDate = "",
+  lockPosition = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   values: AssetFormValues;
@@ -310,11 +365,12 @@ function AssetEditor({
   id?: string;
   includeDate?: boolean;
   defaultDate?: string;
+  lockPosition?: boolean;
 }) {
   return (
     <form action={action} className="grid gap-4">
       {id ? <input type="hidden" name="id" value={id} /> : null}
-      <AssetFields values={values} includeDate={includeDate} defaultDate={defaultDate} />
+      <AssetFields values={values} includeDate={includeDate} defaultDate={defaultDate} lockPosition={lockPosition} />
       <DialogFooter>
         <SaveButton>{submitLabel}</SaveButton>
       </DialogFooter>

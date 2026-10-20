@@ -1,8 +1,14 @@
 import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
+import { toNumber } from "@/lib/finance/format";
+import { dayKey } from "@/lib/finance/holding-growth";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
+import { latestQuote } from "@/lib/finance/prices/match";
+import { isPriceUnit } from "@/lib/finance/prices/unit";
 import { loadBook, readRows, type FinanceClient } from "@/lib/finance/queries";
+import { weekFlowAmounts, type TradeSide } from "@/lib/finance/trades";
 import type { Alert } from "@/lib/finance/types";
 import {
+  WEEK_MS,
   baselineWeekly,
   buildWeeklyReport,
   formatWeeklySummary,
@@ -81,11 +87,41 @@ export async function publishWeeklyReport(
   const alerts = await readRows<Alert>(supabase.from("alerts").select("*").eq("user_id", userId));
   if (!alerts.ok) return alerts;
 
+  const fromDay = dayKey(new Date(now.getTime() - WEEK_MS).toISOString());
+  const toDay = dayKey(now.toISOString());
+  const tradeRows = await supabase
+    .from("trades")
+    .select("asset_id,cash_asset_id,side,quantity,price,fee,price_unit")
+    .eq("user_id", userId)
+    .gte("traded_on", fromDay)
+    .lte("traded_on", toDay);
+  if (tradeRows.error && !schemaGap(tradeRows.error)) console.error(tradeRows.error);
+  const usd = latestQuote(book.data.prices, "USD");
+  const flows = tradeRows.error
+    ? []
+    : [...weekFlowAmounts(
+        (tradeRows.data ?? []).flatMap((row) => {
+          if (!isPriceUnit(row.price_unit) || (row.side !== "buy" && row.side !== "sell")) return [];
+          const side: TradeSide = row.side;
+          return [{
+            assetId: row.asset_id,
+            cashAssetId: row.cash_asset_id,
+            side,
+            quantity: toNumber(row.quantity),
+            price: row.price == null ? null : toNumber(row.price),
+            fee: toNumber(row.fee),
+            unit: row.price_unit,
+          }];
+        }),
+        usd ? toNumber(usd.price) : null,
+      )].map(([assetId, amount]) => ({ assetId, amount }));
+
   const content = buildWeeklyReport({
     now,
     snapshot,
     previous: baselineWeekly(reports.data, now),
     alerts: alerts.data,
+    flows,
   });
 
   const inserted = await supabase

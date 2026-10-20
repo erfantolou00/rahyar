@@ -17,10 +17,12 @@ export function AssetFields({
   values,
   includeDate = false,
   defaultDate = "",
+  lockPosition = false,
 }: {
   values: AssetFormValues;
   includeDate?: boolean;
   defaultDate?: string;
+  lockPosition?: boolean;
 }) {
   const [type, setType] = useState(values.type);
   const [symbol, setSymbol] = useState(values.symbol);
@@ -44,9 +46,14 @@ export function AssetFields({
     if (untouched && next === "crypto") setUnit("usd");
   }
 
+  const fields = lockPosition
+    ? assetFields.filter((field) => field.name !== "quantity" && field.name !== "avg_buy_price" && field.name !== "price_unit")
+    : assetFields;
+  const listed = type === "stock" || type === "fund";
+
   return (
     <div className="grid gap-3">
-      {assetFields.map((field) => (
+      {fields.map((field) => (
         <Fragment key={field.name}>
           <FieldControl
             field={field}
@@ -54,6 +61,7 @@ export function AssetFields({
             type={type}
             symbol={symbol}
             unit={unit}
+            locked={lockPosition}
             onTypeChange={changeType}
             onSymbolChange={setSymbol}
             onUnitChange={setUnit}
@@ -65,6 +73,20 @@ export function AssetFields({
           ) : null}
         </Fragment>
       ))}
+      {lockPosition ? (
+        <p className="text-sm leading-6 text-muted-foreground">
+          تعداد {values.quantity || "۰"} و قیمت خرید متوسط {values.avg_buy_price || "—"} از دفتر خرید و فروش می‌آید و اینجا عوض نمی‌شود.
+        </p>
+      ) : null}
+      {!lockPosition && listed ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor="asset-fee">کارمزد ({unitLabels[unit]})</Label>
+          <Input id="asset-fee" name="fee" defaultValue="" inputMode="decimal" dir="ltr" min={0} placeholder="۰" className={controlClass} />
+          <p className="text-xs leading-5 text-muted-foreground">
+            به بهای خرید اضافه می‌شود. اگر یک دارایی نقد ریالی داشته باشید و این خرید ریالی باشد، همان مبلغ از نقد کم می‌شود.
+          </p>
+        </div>
+      ) : null}
       <AllocationClassField
         manual={manualClass}
         chosen={chosenClass}
@@ -82,6 +104,7 @@ function FieldControl({
   type,
   symbol,
   unit,
+  locked,
   onTypeChange,
   onSymbolChange,
   onUnitChange,
@@ -93,6 +116,7 @@ function FieldControl({
   type: string;
   symbol: string;
   unit: PriceUnit;
+  locked: boolean;
   onTypeChange: (value: string) => void;
   onSymbolChange: (value: string) => void;
   onUnitChange: (value: PriceUnit) => void;
@@ -101,10 +125,12 @@ function FieldControl({
 }) {
   const id = `asset-${field.name}`;
   const unitLabel = unitLabels[unit];
+  const labelText =
+    field.name === "avg_buy_price" && (type === "stock" || type === "fund") ? "قیمت این خرید" : field.label;
   const label =
     field.name === "avg_buy_price" || field.name === "manual_value"
-      ? `${field.label} (${unitLabel})`
-      : field.label;
+      ? `${labelText} (${unitLabel})`
+      : labelText;
 
   return (
     <div className="grid gap-1.5">
@@ -114,6 +140,7 @@ function FieldControl({
           id={id}
           name={field.name}
           required={field.required}
+          disabled={locked && field.name === "type"}
           value={field.name === "price_unit" ? unit : type}
           onChange={(event) => {
             const next = event.target.value;
@@ -132,7 +159,7 @@ function FieldControl({
         <Input
           id={id}
           name={field.name}
-          required={field.required}
+          required={field.name === "avg_buy_price" ? type === "stock" || type === "fund" : field.required}
           value={field.name === "symbol" ? symbol : undefined}
           defaultValue={field.name === "symbol" ? undefined : values[field.name]}
           onChange={field.name === "symbol" ? (event) => onSymbolChange(event.target.value) : undefined}

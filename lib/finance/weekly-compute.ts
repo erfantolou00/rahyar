@@ -25,6 +25,7 @@ export type WeeklyAsset = {
   previous_value: number | null;
   pnl_value: number | null;
   pnl_percent: number | null;
+  flow_value: number;
 };
 
 export type WeeklyAlert = {
@@ -57,6 +58,7 @@ export type WeeklyReportContent = {
     previous_total_value: number | null;
     change_value: number | null;
     change_percent: number | null;
+    flow_value: number;
   };
   assets: WeeklyAsset[];
   alerts: WeeklyAlert[];
@@ -102,13 +104,20 @@ export function buildWeeklyReport(input: {
   snapshot: PortfolioSnapshot;
   previous: WeeklyReportContent | null;
   alerts: Alert[];
+  flows?: { assetId: string; amount: number }[];
 }): WeeklyReportContent {
   const to = input.now.getTime();
   const from = to - WEEK_MS;
+  const flowById = new Map<string, number>();
+  for (const flow of input.flows ?? []) {
+    flowById.set(flow.assetId, (flowById.get(flow.assetId) ?? 0) + flow.amount);
+  }
   const previousById = new Map((input.previous?.assets ?? []).map((asset) => [asset.id, asset]));
   const assets: WeeklyAsset[] = input.snapshot.holdings.map((holding) => {
     const earlier = previousById.get(holding.id);
     const change = weekChange(holding.value, earlier ? earlier.value : null);
+    const flow = flowById.get(holding.id) ?? 0;
+    const pnl = change.value == null ? null : change.value - flow;
     return {
       id: holding.id,
       type: holding.type,
@@ -116,8 +125,9 @@ export function buildWeeklyReport(input: {
       quantity: holding.quantity,
       value: holding.value,
       previous_value: earlier ? earlier.value : null,
-      pnl_value: change.value,
-      pnl_percent: change.percent,
+      pnl_value: pnl,
+      pnl_percent: earlier && earlier.value > 0 && pnl != null ? (pnl / earlier.value) * 100 : null,
+      flow_value: flow,
     };
   });
 
@@ -125,6 +135,8 @@ export function buildWeeklyReport(input: {
   for (const earlier of input.previous?.assets ?? []) {
     if (currentIds.has(earlier.id) || earlier.value === 0) continue;
     const change = weekChange(0, earlier.value);
+    const flow = flowById.get(earlier.id) ?? 0;
+    const pnl = change.value == null ? null : change.value - flow;
     assets.push({
       id: earlier.id,
       type: earlier.type,
@@ -132,8 +144,9 @@ export function buildWeeklyReport(input: {
       quantity: 0,
       value: 0,
       previous_value: earlier.value,
-      pnl_value: change.value,
-      pnl_percent: change.percent,
+      pnl_value: pnl,
+      pnl_percent: earlier.value > 0 && pnl != null ? (pnl / earlier.value) * 100 : null,
+      flow_value: flow,
     });
   }
 
@@ -173,15 +186,22 @@ export function buildWeeklyReport(input: {
     input.snapshot.totalValue,
     input.previous ? input.previous.portfolio.total_value : null,
   );
+  const flowValue = [...flowById.values()].reduce((sum, amount) => sum + amount, 0);
+  const priceChange = totalChange.value == null ? null : totalChange.value - flowValue;
+  const previousTotal = input.previous ? input.previous.portfolio.total_value : null;
 
   return {
     schema: WEEKLY_REPORT_SCHEMA,
     period: { from: new Date(from).toISOString(), to: new Date(to).toISOString() },
     portfolio: {
       total_value: input.snapshot.totalValue,
-      previous_total_value: input.previous ? input.previous.portfolio.total_value : null,
-      change_value: totalChange.value,
-      change_percent: totalChange.percent,
+      previous_total_value: previousTotal,
+      change_value: priceChange,
+      change_percent:
+        previousTotal != null && previousTotal > 0 && priceChange != null
+          ? (priceChange / previousTotal) * 100
+          : null,
+      flow_value: flowValue,
     },
     assets,
     alerts,

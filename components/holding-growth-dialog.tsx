@@ -14,6 +14,7 @@ import {
   growthRanges,
   sliceGrowth,
   todayKey,
+  type CashFlow,
   type GrowthPoint,
   type GrowthRangeId,
 } from "@/lib/finance/holding-growth";
@@ -23,6 +24,7 @@ type GrowthPayload = {
   symbol: string;
   unit: "rial" | "usd";
   points: GrowthPoint[];
+  flows?: CashFlow[];
 };
 
 export function HoldingGrowthDialog({
@@ -69,14 +71,14 @@ export function HoldingGrowthDialog({
   const selected = growthRanges.find((item) => item.id === range) ?? growthRanges[0];
   const current = load?.id === rowId && load.status === "ready" ? load.payload : null;
   const failed = load?.id === rowId && load.status === "error";
-  const summary = current ? sliceGrowth(current.points, selected?.days ?? null, today) : null;
+  const summary = current ? sliceGrowth(current.points, selected?.days ?? null, today, current.flows ?? []) : null;
 
   return (
     <Dialog open={row != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>رشد {current?.symbol ?? row?.cells.name}</DialogTitle>
-          <DialogDescription>ارزش تعداد فعلی این دارایی، با قیمت ذخیره‌شده در هر روز.</DialogDescription>
+          <DialogDescription>ارزش تعدادی که در هر روز داشته‌اید. سود قیمت، خرید و فروش همان بازه را کنار می‌گذارد.</DialogDescription>
         </DialogHeader>
 
         {row && !current && !failed ? (
@@ -128,12 +130,14 @@ export function HoldingGrowthDialog({
             <dl className="grid gap-3 sm:grid-cols-4">
               <Figure label="ارزش ابتدا" value={money(summary.startValue, current.unit)} />
               <Figure label="ارزش پایان" value={money(summary.endValue, current.unit)} />
-              <Figure label="تغییر" value={signedMoney(summary.change, current.unit)} tone={toneOf(summary.change)} />
+              <Figure label="سود قیمت" value={signedMoney(summary.change, current.unit)} tone={toneOf(summary.change)} />
               <Figure label="بازده" value={signedPercent(summary.changePercent)} tone={toneOf(summary.changePercent)} />
             </dl>
 
             <p className="text-xs leading-6 text-muted-foreground">
-              نمودار تعداد فعلی سبد را در قیمت هر روز ضرب می‌کند. دلار، طلا، سکه و بیت‌کوین از نماد بازار خوانده می‌شوند.
+              {summary.flow === 0
+                ? "خط نمودار ارزش همان روز است. دلار، طلا، سکه و بیت‌کوین از نماد بازار خوانده می‌شوند."
+                : `در این بازه ${signedMoney(summary.flow, current.unit)} پول به این دارایی وارد یا از آن خارج شده و در سود قیمت نیست.`}
             </p>
           </div>
         ) : null}

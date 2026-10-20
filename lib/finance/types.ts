@@ -10,14 +10,14 @@ export const assetTypes = [
   "real_estate",
 ] as const;
 
-export const transactionTypes = ["buy", "sell", "deposit", "withdraw"] as const;
+export const tradeSides = ["buy", "sell"] as const;
 
 export const reportTypes = ["daily", "weekly", "event", "period"] as const;
 
 export const chatRoles = ["user", "assistant", "system"] as const;
 
 export type AssetType = (typeof assetTypes)[number];
-export type TransactionType = (typeof transactionTypes)[number];
+export type TradeSide = (typeof tradeSides)[number];
 export type ReportType = (typeof reportTypes)[number];
 export type ChatRole = (typeof chatRoles)[number];
 
@@ -44,15 +44,21 @@ export type Asset = {
   updated_at: string;
 };
 
-export type Transaction = {
+export type Trade = {
   id: string;
   user_id: string;
-  asset_id: string;
-  type: TransactionType;
-  qty: Numeric;
-  price: Numeric;
-  date: string;
-  note: string | null;
+  asset_id: string | null;
+  asset_type: AssetType;
+  symbol: string;
+  side: TradeSide;
+  quantity: Numeric;
+  price: Numeric | null;
+  fee: Numeric;
+  price_unit: PriceUnit;
+  traded_on: string;
+  settles_cash: boolean;
+  cash_asset_id: string | null;
+  created_at: string;
 };
 
 export type Price = {

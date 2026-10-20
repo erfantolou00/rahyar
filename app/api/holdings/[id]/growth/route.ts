@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { toNumber } from "@/lib/finance/format";
-import { buildHoldingSeries, dayKey, shiftDays, todayKey } from "@/lib/finance/holding-growth";
+import { buildHoldingSeries, cashFlows, dayKey, shiftDays, todayKey, type HoldingLot } from "@/lib/finance/holding-growth";
 import { quoteSeriesKey } from "@/lib/finance/prices/match";
 import type { FinanceClient } from "@/lib/finance/queries";
 import type { AssetType } from "@/lib/finance/types";
@@ -31,10 +31,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const series = quoteSeriesKey(asset.data.type, asset.data.symbol);
   const quotes = await loadDailyQuotes(session.supabase, series.assetType, series.symbol);
-  const points = buildHoldingSeries({
-    quantity: toNumber(asset.data.quantity),
-    quotes,
-  });
+  const lots = await loadHoldingLots(session.supabase, asset.data.id, toNumber(asset.data.quantity));
+  if (!lots) return NextResponse.json({ error: "unavailable" }, { status: 503 });
+  const points = buildHoldingSeries({ lots, quotes });
   const listed = asset.data.type === "stock" || asset.data.type === "fund";
   const unit = !listed && asset.data.price_unit === "usd" ? "usd" : "rial";
 
@@ -42,7 +41,39 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     symbol: asset.data.symbol,
     unit,
     points,
+    flows: cashFlows(lots),
   });
+}
+
+async function loadHoldingLots(
+  supabase: FinanceClient,
+  assetId: string,
+  quantity: number,
+): Promise<HoldingLot[] | null> {
+  const trades = await supabase
+    .from("trades")
+    .select("side,quantity,price,fee,traded_on")
+    .eq("asset_id", assetId)
+    .order("traded_on", { ascending: true });
+  if (trades.error) {
+    if (missingRelation(trades.error)) {
+      return quantity > 0
+        ? [{ day: "1970-01-01", side: "buy", quantity, price: null, fee: 0 }]
+        : [];
+    }
+    console.error(trades.error);
+    return null;
+  }
+  if ((trades.data ?? []).length === 0) {
+    return quantity > 0 ? [{ day: "1970-01-01", side: "buy", quantity, price: null, fee: 0 }] : [];
+  }
+  return (trades.data ?? []).map((row) => ({
+    day: row.traded_on,
+    side: row.side,
+    quantity: toNumber(row.quantity),
+    price: row.price == null ? null : toNumber(row.price),
+    fee: toNumber(row.fee),
+  }));
 }
 
 function missingRelation(error: { code?: string; message?: string }): boolean {
