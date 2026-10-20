@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { LineChart } from "lucide-react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
+import { todayKey } from "@/lib/finance/holding-growth";
 import { AssetFields } from "@/components/basket/asset-fields";
 import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
 import { HoldingGrowthDialog } from "@/components/holding-growth-dialog";
@@ -61,7 +62,7 @@ export function BasketBoard({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {marks.map((mark) => (
           <Card key={mark.title} size="sm">
             <CardHeader>
@@ -110,14 +111,14 @@ export function BasketBoard({
       <div className="flex justify-start">
         <Dialog>
           <DialogTrigger render={<Button type="button" className="h-11 px-4" />}>افزودن دارایی</DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
               <DialogDescription>
-                مبنای قیمت را ریال یا دلار انتخاب کنید. تعداد می‌تواند اعشاری باشد، مثل ۰٫۰۰۰۳ بیت‌کوین. برای سهام و صندوق بورسی آخرین قیمت معامله نشان داده می‌شود و برای بقیه، اگر قیمت فعلی خالی بماند قیمت زنده استفاده می‌شود.
+                تاریخ خرید شمسی است. اگر همین سهم یا صندوق را از قبل داشته باشید، تعداد به همان ردیف اضافه می‌شود و قیمت خرید متوسط با خرید جدید دوباره حساب می‌شود. سهام و صندوق از قیمت بازار می‌آیند. برای بقیه، عددِ قیمت فعلی قیمت بازار را قفل می‌کند.
               </DialogDescription>
             </DialogHeader>
-            <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" />
+            <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" includeDate defaultDate={todayKey()} />
           </DialogContent>
         </Dialog>
       </div>
@@ -132,7 +133,7 @@ export function BasketBoard({
             <SortableTable
               rows={rows}
               rowKey={(row) => row.id}
-              minWidth="64rem"
+              minWidth="72rem"
               columns={basketColumns.map((column): SortableColumn<PresentedRow> => ({
                 key: column.key,
                 label: column.label,
@@ -300,16 +301,20 @@ function AssetEditor({
   values,
   submitLabel,
   id,
+  includeDate = false,
+  defaultDate = "",
 }: {
   action: (formData: FormData) => void | Promise<void>;
   values: AssetFormValues;
   submitLabel: string;
   id?: string;
+  includeDate?: boolean;
+  defaultDate?: string;
 }) {
   return (
     <form action={action} className="grid gap-4">
       {id ? <input type="hidden" name="id" value={id} /> : null}
-      <AssetFields values={values} />
+      <AssetFields values={values} includeDate={includeDate} defaultDate={defaultDate} />
       <DialogFooter>
         <SaveButton>{submitLabel}</SaveButton>
       </DialogFooter>

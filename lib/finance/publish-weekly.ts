@@ -1,8 +1,7 @@
 import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
-import { buildPortfolio } from "@/lib/finance/portfolio";
 import { ensureLivePrices } from "@/lib/finance/prices/ensure";
-import { loadLatestPrices, readRows, type FinanceClient } from "@/lib/finance/queries";
-import type { Alert, Allocation, Asset } from "@/lib/finance/types";
+import { loadBook, readRows, type FinanceClient } from "@/lib/finance/queries";
+import type { Alert } from "@/lib/finance/types";
 import {
   baselineWeekly,
   buildWeeklyReport,
@@ -58,22 +57,14 @@ export async function publishWeeklyReport(
 
   await ensureLivePrices(supabase, userId, now);
 
-  const [assets, allocations] = await Promise.all([
-    readRows<Asset>(supabase.from("assets").select("*").eq("user_id", userId)),
-    readRows<Allocation>(supabase.from("allocations").select("*").eq("user_id", userId)),
-  ]);
-  const failed = [assets, allocations].find((result) => !result.ok);
-  if (failed && !failed.ok) return failed;
-  if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
+  const book = await loadBook(supabase, userId);
+  if (!book.ok) return book;
 
-  const prices = await loadLatestPrices(supabase, assets.data, userId);
-  if (!prices.ok) return prices;
-
-  const snapshot = buildPortfolio(assets.data, prices.data, allocations.data);
+  const snapshot = book.data.snapshot;
   const synced = await syncAllocationDeviationAlerts(
     supabase,
     userId,
-    deviationsForSnapshot(snapshot, allocations.data, now),
+    deviationsForSnapshot(snapshot, book.data.allocations, now),
   );
   if (!synced.ok) {
     if (synced.missingSchema) return synced;

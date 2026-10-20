@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { effectiveAllocationClass } from "@/lib/finance/allocation-class";
 import { toNumber } from "@/lib/finance/format";
-import { instrumentForAsset, latestQuote } from "@/lib/finance/prices/match";
+import { instrumentForAsset, latestQuote, liveSymbols } from "@/lib/finance/prices/match";
 import { amountInRial, quoteInUnit, type PriceUnit } from "@/lib/finance/prices/unit";
 import { buildBasket, buildPortfolio, latestPrices } from "@/lib/finance/portfolio";
 import type {
@@ -40,9 +40,26 @@ export async function readRows<T>(
   return { ok: true, data: data ?? [] };
 }
 
-const liveSymbols = ["USD", "GOLD18", "BTC"] as const;
+export type Book = {
+  assets: Asset[];
+  allocations: Allocation[];
+  prices: Price[];
+  snapshot: PortfolioSnapshot;
+};
 
 export async function loadLatestPrices(
+  supabase: FinanceClient,
+  assets: Pick<Asset, "type" | "symbol">[],
+  userId?: string,
+): Promise<LoadResult<Price[]>> {
+  let view = supabase.from("latest_prices").select("*");
+  if (userId) view = view.eq("user_id", userId);
+  const latest = await readRows<Price>(view);
+  if (latest.ok || !latest.missingSchema) return latest;
+  return loadLatestPricesBySymbol(supabase, assets, userId);
+}
+
+async function loadLatestPricesBySymbol(
   supabase: FinanceClient,
   assets: Pick<Asset, "type" | "symbol">[],
   userId?: string,
@@ -88,27 +105,42 @@ export async function loadLatestPrices(
   return { ok: true, data: [...byId.values()] };
 }
 
-export async function loadPortfolio(
-  supabase: FinanceClient,
-): Promise<LoadResult<PortfolioSnapshot>> {
-  const [assets, allocations] = await Promise.all([
-    readRows<Asset>(supabase.from("assets").select("*")),
-    readRows<Allocation>(
-      supabase.from("allocations").select("*").order("valid_from", { ascending: false }),
-    ),
-  ]);
+export async function loadBook(supabase: FinanceClient, userId?: string): Promise<LoadResult<Book>> {
+  let assetsQuery = supabase.from("assets").select("*");
+  let allocationsQuery = supabase.from("allocations").select("*").order("valid_from", { ascending: false });
+  if (userId) {
+    assetsQuery = assetsQuery.eq("user_id", userId);
+    allocationsQuery = allocationsQuery.eq("user_id", userId);
+  }
 
-  const firstFailure = [assets, allocations].find((result) => !result.ok);
-  if (firstFailure && !firstFailure.ok) return firstFailure;
+  const [assets, allocations] = await Promise.all([
+    readRows<Asset>(assetsQuery),
+    readRows<Allocation>(allocationsQuery),
+  ]);
+  const failed = [assets, allocations].find((result) => !result.ok);
+  if (failed && !failed.ok) return failed;
   if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
 
-  const prices = await loadLatestPrices(supabase, assets.data);
+  const prices = await loadLatestPrices(supabase, assets.data, userId);
   if (!prices.ok) return prices;
 
   return {
     ok: true,
-    data: buildPortfolio(assets.data, prices.data, allocations.data),
+    data: {
+      assets: assets.data,
+      allocations: allocations.data,
+      prices: prices.data,
+      snapshot: buildPortfolio(assets.data, prices.data, allocations.data),
+    },
   };
+}
+
+export async function loadPortfolio(
+  supabase: FinanceClient,
+): Promise<LoadResult<PortfolioSnapshot>> {
+  const book = await loadBook(supabase);
+  if (!book.ok) return book;
+  return { ok: true, data: book.data.snapshot };
 }
 
 export async function loadBasket(
@@ -154,6 +186,7 @@ export async function loadBasket(
           priceOrigin: useLive ? "live" : manual != null ? "manual" : "none",
           allocationClass: effectiveAllocationClass(asset),
           allocationClassSource: asset.allocation_class_source === "manual" ? "manual" : "auto",
+          acquiredOn: asset.acquired_on,
         };
       }),
     ),

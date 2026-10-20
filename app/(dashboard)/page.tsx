@@ -1,128 +1,67 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AllocationDeviationPanel } from "@/components/allocation-deviation-panel";
-import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
-import { MacroPanel } from "@/components/macro-panel";
+import { PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { deviationsForSnapshot } from "@/lib/finance/allocation-alerts";
-import { formatNumber, formatPercent } from "@/lib/finance/format";
-import { presentMacro } from "@/lib/finance/macro/present";
-import { allocationStatusLabels, assetTypeLabels } from "@/lib/finance/labels";
-import { loadPortfolio, readRows } from "@/lib/finance/queries";
-import type { Alert, Allocation, AllocationStatus, MacroIndicatorRow } from "@/lib/finance/types";
-
-const weightTone: Record<AllocationStatus, string> = {
-  inside: "bg-ok",
-  below: "bg-warn",
-  above: "bg-warn",
-  unset: "bg-primary",
-};
+import { formatMoney, formatNumber, formatPercent } from "@/lib/finance/format";
+import { portfolioCostChange } from "@/lib/finance/portfolio";
+import { loadBook } from "@/lib/finance/queries";
 import { requireSession } from "@/lib/supabase/auth";
 
 export const metadata: Metadata = { title: "نمای کلی" };
 
 export default async function OverviewPage() {
   const { supabase } = await requireSession();
-  const [portfolio, alerts, allocationRows, macroRows] = await Promise.all([
-    loadPortfolio(supabase),
-    readRows<Alert>(supabase.from("alerts").select("*").eq("is_active", true)),
-    readRows<Allocation>(supabase.from("allocations").select("*")),
-    readRows<Pick<MacroIndicatorRow, "indicator" | "value" | "date" | "source">>(
-      supabase.from("macro_indicators").select("indicator,value,date,source").order("date", { ascending: false }),
-    ),
-  ]);
+  const book = await loadBook(supabase);
+  if (!book.ok) return <SchemaNotice missing={book.missingSchema} />;
 
-  if (!portfolio.ok) return <SchemaNotice missing={portfolio.missingSchema} />;
-
-  const deviations = allocationRows.ok
-    ? deviationsForSnapshot(portfolio.data, allocationRows.data)
-    : [];
-  const activeRules = alerts.ok
-    ? alerts.data.filter((alert) => alert.kind !== "allocation_deviation")
-    : null;
-
-  const macro = macroRows.ok ? presentMacro(macroRows.data) : null;
+  const deviations = deviationsForSnapshot(book.data.snapshot, book.data.allocations);
+  const change = portfolioCostChange(book.data.assets, book.data.snapshot, book.data.prices);
+  const sentence = costSentence(change);
 
   return (
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ذخیره‌شده حساب می‌شود. قیمت، انحراف، کدال و ماکرو روی سرور به‌روز می‌شوند و باز کردن این صفحه منتظر قیمت جدید نمی‌ماند."
+        description="ارزش دفتر، فاصله از میانگین خرید، و طبقه‌هایی که از بازه بیرون‌اند. قیمت روی سرور به‌روز می‌شود و باز کردن این صفحه منتظر قیمت جدید نمی‌ماند."
         action={<RefreshPricesButton returnTo="/" />}
       />
-      <AllocationDeviationPanel
-        deviations={deviations}
-        ready={allocationRows.ok}
-      />
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <Panel title="ارزش کل">
-          <p className="numeric text-3xl font-semibold">{formatNumber(portfolio.data.totalValue, 0)}</p>
-        </Panel>
-        <Panel title="دارایی‌ها">
-          <p className="numeric text-3xl font-semibold">{formatNumber(portfolio.data.holdings.length, 0)}</p>
-        </Panel>
-        <Panel title="هشدار فعال">
-          <p className="numeric text-3xl font-semibold">
-            {activeRules ? formatNumber(activeRules.length, 0) : "—"}
-          </p>
-        </Panel>
-      </div>
-
+      <Panel>
+        <p className="text-sm text-muted-foreground">ارزش دفتر</p>
+        <p className="numeric mt-2 text-4xl font-semibold tracking-tight">
+          {formatMoney(book.data.snapshot.totalValue)}
+        </p>
+        <p className={`mt-3 text-sm leading-7 ${sentence.tone}`}>{sentence.text}</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          <Link href="/basket" className="underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            سبد دارایی
+          </Link>
+          <span className="numeric"> · {formatNumber(book.data.snapshot.holdings.length, 0)} دارایی</span>
+        </p>
+      </Panel>
       <div className="mt-4">
-        <MacroPanel
-          cards={macro?.cards ?? []}
-          empty={macro?.empty ?? false}
-          schemaIssue={macroRows.ok ? null : macroRows.missingSchema}
-        />
-      </div>
-
-      <div className="mt-4">
-        <Panel title="وزن طبقات تخصیص">
-          {portfolio.data.byType.length === 0 ? (
-            <EmptyState>
-              هنوز دارایی یا محدوده‌ای ثبت نشده. از{" "}
-              <Link href="/basket" className="underline underline-offset-4">
-                دارایی‌ها
-              </Link>{" "}
-              شروع کنید.
-            </EmptyState>
-          ) : (
-            <ul className="grid gap-4">
-              {portfolio.data.byType.map((row) => (
-                <li key={row.type} className="grid gap-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium">{assetTypeLabels[row.type]}</span>
-                    <span className="text-muted-foreground">
-                      <span className="numeric">{formatPercent(row.weight)}</span>
-                      {" · "}
-                      {allocationStatusLabels[row.status]}
-                      {row.minPercent != null && row.maxPercent != null ? (
-                        <span className="numeric">
-                          {" "}
-                          ({formatNumber(row.minPercent, 0)}–{formatNumber(row.maxPercent, 0)})
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <div
-                    className="h-2 overflow-hidden rounded-full bg-muted"
-                    role="meter"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(row.weight)}
-                    aria-label={assetTypeLabels[row.type]}
-                  >
-                    <div
-                      className={`h-full rounded-full ${weightTone[row.status]}`}
-                      style={{ width: `${Math.min(100, Math.max(0, row.weight))}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+        <AllocationDeviationPanel deviations={deviations} ready />
       </div>
     </div>
   );
+}
+
+function costSentence(change: { absolute: number | null; percent: number | null }): { text: string; tone: string } {
+  if (change.absolute == null) {
+    return {
+      text: "میانگین خرید ثبت نشده، پس تغییر نسبت به خرید حساب نمی‌شود.",
+      tone: "text-muted-foreground",
+    };
+  }
+  if (change.absolute === 0) {
+    return { text: "بدون تغییر نسبت به میانگین خرید.", tone: "text-muted-foreground" };
+  }
+  const direction = change.absolute > 0 ? "افزایش" : "کاهش";
+  const share = change.percent == null ? "" : `، برابر ${formatPercent(Math.abs(change.percent))}`;
+  const tone = change.absolute > 0 ? "text-ok" : "text-danger";
+  return {
+    text: `${direction} ${formatMoney(Math.abs(change.absolute))}${share} نسبت به میانگین خرید.`,
+    tone,
+  };
 }

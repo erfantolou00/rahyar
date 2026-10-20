@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 import { Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { MacroPanel } from "@/components/macro-panel";
+import { PriceFeedsDialog } from "@/components/price-feeds-dialog";
 import { PricesBrowser } from "@/components/prices-browser";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { createPrice } from "@/app/(dashboard)/prices/actions";
 import { formatDollar, formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
+import { presentMacro } from "@/lib/finance/macro/present";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
 import { loadPricePage, parsePriceListQuery } from "@/lib/finance/prices/list";
+import { readRows } from "@/lib/finance/queries";
 import { assetTypeLabels } from "@/lib/finance/labels";
-import { assetTypes } from "@/lib/finance/types";
-import { createClient } from "@/lib/supabase/server";
+import { assetTypes, type MacroIndicatorRow } from "@/lib/finance/types";
+import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
+import { requireSession } from "@/lib/supabase/auth";
 
 export const metadata: Metadata = { title: "قیمت‌ها" };
 
@@ -18,18 +23,37 @@ export default async function PricesPage({
   searchParams: Promise<{ error?: string; q?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const supabase = await createClient();
+  const { supabase, userId } = await requireSession();
   const query = parsePriceListQuery(params.q, params.page);
-  const prices = await loadPricePage(supabase, query);
+  const [prices, macroRows, feeds] = await Promise.all([
+    loadPricePage(supabase, query),
+    readRows<Pick<MacroIndicatorRow, "indicator" | "value" | "date" | "source">>(
+      supabase.from("macro_indicators").select("indicator,value,date,source").order("date", { ascending: false }),
+    ),
+    loadPriceFeeds(supabase, userId),
+  ]);
+  const macro = macroRows.ok ? presentMacro(macroRows.data) : null;
 
   return (
     <div>
       <PageHeader
         title="قیمت‌ها"
-        description="هر قیمت متعلق به همین حساب است. آخرین قیمت ذخیره‌شده در ارزش دفتر استفاده می‌شود. سهام شنبه تا چهارشنبه ساعت ۹ تا ۱۳ روی سرور ثبت می‌شود و این صفحه منتظر قیمت جدید نمی‌ماند."
-        action={<RefreshPricesButton returnTo="/prices" />}
+        description="هر قیمت متعلق به همین حساب است. آخرین قیمت ذخیره‌شده در ارزش دفتر استفاده می‌شود. دلار، طلا، سکه‌های امامی و بهار آزادی و نیم و ربع، و بیت‌کوین از بازار خوانده می‌شوند. سهام شنبه تا چهارشنبه ساعت ۹ تا ۱۳ روی سرور ثبت می‌شود و این صفحه منتظر قیمت جدید نمی‌ماند."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <PriceFeedsDialog feeds={feeds.feeds} schemaMissing={feeds.missingSchema} />
+            <RefreshPricesButton returnTo="/prices" />
+          </div>
+        }
       />
       <Notice message={errorMessage(params.error)} />
+      <div className="mb-4">
+        <MacroPanel
+          cards={macro?.cards ?? []}
+          empty={macro?.empty ?? false}
+          schemaIssue={macroRows.ok ? null : macroRows.missingSchema}
+        />
+      </div>
       {!prices.ok ? (
         <SchemaNotice missing={prices.missingSchema} />
       ) : (

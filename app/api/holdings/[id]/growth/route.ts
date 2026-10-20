@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { toNumber } from "@/lib/finance/format";
 import { buildHoldingSeries, dayKey, shiftDays, todayKey } from "@/lib/finance/holding-growth";
+import { quoteSeriesKey } from "@/lib/finance/prices/match";
 import type { FinanceClient } from "@/lib/finance/queries";
 import type { AssetType } from "@/lib/finance/types";
 import { getAuthorizedSession } from "@/lib/supabase/auth";
@@ -28,8 +29,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
   if (!asset.data) return NextResponse.json({ error: "missing" }, { status: 404 });
 
-  const symbol = asset.data.symbol.trim();
-  const quotes = await loadDailyQuotes(session.supabase, asset.data.type, symbol);
+  const series = quoteSeriesKey(asset.data.type, asset.data.symbol);
+  const quotes = await loadDailyQuotes(session.supabase, series.assetType, series.symbol);
   const points = buildHoldingSeries({
     quantity: toNumber(asset.data.quantity),
     quotes,
@@ -44,6 +45,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   });
 }
 
+function missingRelation(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    /schema cache|does not exist|could not find the/i.test(error.message ?? "")
+  );
+}
+
 async function loadDailyQuotes(
   supabase: FinanceClient,
   assetType: AssetType,
@@ -51,9 +60,26 @@ async function loadDailyQuotes(
 ): Promise<{ at: string; price: number }[]> {
   if (!symbol) return [];
   const since = shiftDays(todayKey(), 365 * 3);
+  const days = await supabase
+    .from("price_days")
+    .select("day,price")
+    .eq("asset_type", assetType)
+    .eq("symbol", symbol)
+    .gte("day", since)
+    .order("day", { ascending: true })
+    .limit(1200);
+  if (!days.error) {
+    return (days.data ?? [])
+      .map((row) => ({ at: row.day, price: toNumber(row.price) }))
+      .filter((row) => row.price > 0);
+  }
+  if (!missingRelation(days.error)) {
+    console.error(days.error);
+    return [];
+  }
+
   const byDay = new Map<string, number>();
   const pageSize = 1000;
-
   for (let page = 0; page < 20; page += 1) {
     const { data, error } = await supabase
       .from("prices")

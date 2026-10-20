@@ -52,6 +52,14 @@ describe("instrumentForSymbol", () => {
     expect(instrumentForSymbol("طلای ۱۸ عیار")).toBe("GOLD18");
     expect(instrumentForSymbol("بیت‌کوین")).toBe("BTC");
     expect(instrumentForSymbol("شبندر")).toBeNull();
+    expect(instrumentForSymbol("سکه")).toBeNull();
+  });
+
+  it("recognizes the four bullion coins", () => {
+    expect(instrumentForSymbol("سکه امامی")).toBe("EMAMI");
+    expect(instrumentForSymbol("بهار آزادی")).toBe("BAHAR");
+    expect(instrumentForSymbol("نیم‌سکه")).toBe("NIM");
+    expect(instrumentForSymbol("ربع سکه")).toBe("ROB");
   });
 });
 
@@ -65,6 +73,7 @@ describe("instrumentForAsset", () => {
 
 describe("describeSource", () => {
   it("abbreviates known feeds and keeps the full name", () => {
+    expect(describeSource("tgju-json:sekee").full).toContain("سکه امامی");
     expect(describeSource("tgju-json:price_dollar_rl")).toEqual({
       short: "TGJU",
       full: "نرخ دلار، وب‌سرویس شبکه اطلاع‌رسانی طلا و ارز (TGJU)",

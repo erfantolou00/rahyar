@@ -133,7 +133,7 @@ export function HoldingGrowthDialog({
             </dl>
 
             <p className="text-xs leading-6 text-muted-foreground">
-              نمودار تعداد فعلی سبد را در قیمت هر روز ضرب می‌کند.
+              نمودار تعداد فعلی سبد را در قیمت هر روز ضرب می‌کند. دلار، طلا، سکه و بیت‌کوین از نماد بازار خوانده می‌شوند.
             </p>
           </div>
         ) : null}

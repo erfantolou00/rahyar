@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { allocationClasses, suggestAllocationClass } from "@/lib/finance/allocation-class";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetFields, type AssetField, type AssetFormValues } from "@/lib/finance/basket-fields";
@@ -8,11 +8,20 @@ import { priceUnits, type PriceUnit } from "@/lib/finance/prices/unit";
 import { assetTypes, type AssetType } from "@/lib/finance/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 
 const controlClass = "h-10 bg-card";
 const unitLabels: Record<PriceUnit, string> = { rial: "ریال", usd: "دلار" };
 
-export function AssetFields({ values }: { values: AssetFormValues }) {
+export function AssetFields({
+  values,
+  includeDate = false,
+  defaultDate = "",
+}: {
+  values: AssetFormValues;
+  includeDate?: boolean;
+  defaultDate?: string;
+}) {
   const [type, setType] = useState(values.type);
   const [symbol, setSymbol] = useState(values.symbol);
   const [unit, setUnit] = useState<PriceUnit>(values.price_unit === "usd" ? "usd" : "rial");
@@ -38,19 +47,23 @@ export function AssetFields({ values }: { values: AssetFormValues }) {
   return (
     <div className="grid gap-3">
       {assetFields.map((field) => (
-        <FieldControl
-          key={field.name}
-          field={field}
-          values={values}
-          type={type}
-          symbol={symbol}
-          unit={unit}
-          onTypeChange={changeType}
-          onSymbolChange={setSymbol}
-          onUnitChange={setUnit}
-          typeOptions={typeOptions}
-          unitOptions={unitOptions}
-        />
+        <Fragment key={field.name}>
+          <FieldControl
+            field={field}
+            values={values}
+            type={type}
+            symbol={symbol}
+            unit={unit}
+            onTypeChange={changeType}
+            onSymbolChange={setSymbol}
+            onUnitChange={setUnit}
+            typeOptions={typeOptions}
+            unitOptions={unitOptions}
+          />
+          {includeDate && field.name === "quantity" ? (
+            <ShamsiDateField name="acquired_on" defaultValue={defaultDate} />
+          ) : null}
+        </Fragment>
       ))}
       <AllocationClassField
         manual={manualClass}
@@ -141,7 +154,9 @@ function FieldControl({
       ) : null}
       {field.name === "manual_value" ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          اگر خالی بماند و قیمت زنده باشد، همان قیمت در جدول نشان داده می‌شود.
+          {type === "stock" || type === "fund"
+            ? "سهام و صندوق از آخرین قیمت بازار حساب می‌شوند. پر بودن این فیلد آن‌ها را عوض نمی‌کند."
+            : "اگر اینجا عدد باشد، قیمت بازار کنار می‌رود و همین عدد می‌ماند. خالی یعنی قیمت بازار."}
         </p>
       ) : null}
     </div>

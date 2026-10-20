@@ -43,6 +43,7 @@ export const basketColumns = [
   { key: "type", label: "نوع", numeric: false },
   { key: "class", label: "طبقه تخصیص", numeric: false },
   { key: "quantity", label: "تعداد", numeric: true },
+  { key: "acquiredOn", label: "تاریخ خرید", numeric: false },
   { key: "avgBuyPrice", label: "قیمت خرید متوسط", numeric: true },
   { key: "currentPrice", label: "قیمت فعلی", numeric: true },
   { key: "currentValue", label: "ارزش فعلی", numeric: true },

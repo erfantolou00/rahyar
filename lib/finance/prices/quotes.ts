@@ -1,7 +1,7 @@
 import { btcInUsdt } from "@/lib/finance/prices/btc";
 import { fetchWithFallback } from "@/lib/finance/prices/fetch-with-fallback";
+import { liveSymbols, type LiveSymbol } from "@/lib/finance/prices/match";
 import { fetchText, scrapeTgjuProfile, tgjuPrice } from "@/lib/finance/prices/tgju";
-import type { LiveSymbol } from "@/lib/finance/prices/match";
 import type { AssetType } from "@/lib/finance/types";
 
 export type MarketQuote = {
@@ -15,6 +15,12 @@ export type MarketQuote = {
 const dollarPage = "https://www.tgju.org/profile/price_dollar_rl";
 const goldPage = "https://www.tgju.org/profile/geram18";
 const bitcoinPage = "https://www.tgju.org/profile/crypto-bitcoin-irr";
+const coinFeeds = {
+  EMAMI: { key: "sekee", page: "https://www.tgju.org/profile/sekee" },
+  BAHAR: { key: "sekeb", page: "https://www.tgju.org/profile/sekeb" },
+  NIM: { key: "nim", page: "https://www.tgju.org/profile/nim" },
+  ROB: { key: "rob", page: "https://www.tgju.org/profile/rob" },
+} as const;
 const TROY_OUNCE_GRAMS = 31.1034768;
 const GOLD_18K_SHARE = 18 / 24;
 
@@ -38,6 +44,15 @@ export async function fetchGoldQuote(): Promise<MarketQuote | null> {
     { name: "gold-api:XAU*nobitex:usdt-rls", run: gold18RialFromSpot },
   ]);
   return result ? quote("GOLD18", "gold", result.price, result.source) : null;
+}
+
+export async function fetchCoinQuote(symbol: keyof typeof coinFeeds): Promise<MarketQuote | null> {
+  const coin = coinFeeds[symbol];
+  const result = await fetchWithFallback([
+    { name: `tgju-json:${coin.key}`, run: () => tgjuPrice(coin.key) },
+    { name: `tgju-page:${coin.key}`, run: () => scrapeTgjuProfile(coin.page) },
+  ]);
+  return result ? quote(symbol, "coin", result.price, result.source) : null;
 }
 
 export async function fetchBtcQuote(): Promise<MarketQuote | null> {
@@ -128,7 +143,17 @@ function requireBtcUsdt(btcRial: number, usdRial: number): number {
   return usdt;
 }
 
-export async function fetchMarketQuotes(): Promise<MarketQuote[]> {
-  const quotes = await Promise.all([fetchUsdQuote(), fetchGoldQuote(), fetchBtcQuote()]);
+const marketFetchers: Record<LiveSymbol, () => Promise<MarketQuote | null>> = {
+  USD: fetchUsdQuote,
+  GOLD18: fetchGoldQuote,
+  EMAMI: () => fetchCoinQuote("EMAMI"),
+  BAHAR: () => fetchCoinQuote("BAHAR"),
+  NIM: () => fetchCoinQuote("NIM"),
+  ROB: () => fetchCoinQuote("ROB"),
+  BTC: fetchBtcQuote,
+};
+
+export async function fetchMarketQuotes(symbols: readonly LiveSymbol[] = liveSymbols): Promise<MarketQuote[]> {
+  const quotes = await Promise.all(symbols.map((symbol) => marketFetchers[symbol]()));
   return quotes.filter((item): item is MarketQuote => item != null);
 }

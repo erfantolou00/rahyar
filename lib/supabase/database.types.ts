@@ -12,6 +12,8 @@ import type {
   NotifyFrequency,
   Numeric,
   Price,
+  PriceDay,
+  PriceFeedRow,
   PriceUnit,
   Report,
   MacroIndicatorRow,
@@ -41,6 +43,7 @@ export type Database = {
           price_unit?: PriceUnit;
           allocation_class?: AssetType;
           allocation_class_source?: "auto" | "manual";
+          acquired_on?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -82,6 +85,34 @@ export type Database = {
           timestamp?: string;
         };
         Update: Partial<Price>;
+        Relationships: [];
+      };
+      price_feeds: {
+        Row: PriceFeedRow;
+        Insert: {
+          user_id?: string;
+          asset_type: AssetType;
+          symbol: string;
+          price_enabled?: boolean;
+          codal_enabled?: boolean;
+          added?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<PriceFeedRow>;
+        Relationships: [];
+      };
+      price_days: {
+        Row: PriceDay;
+        Insert: {
+          user_id: string;
+          asset_type: AssetType;
+          symbol: string;
+          day: string;
+          price: Numeric;
+          source: string;
+          quoted_at: string;
+        };
+        Update: Partial<PriceDay>;
         Relationships: [];
       };
       allocations: {
@@ -216,7 +247,12 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      latest_prices: {
+        Row: Price;
+        Relationships: [];
+      };
+    };
     Functions: {
       replace_allocation: {
         Args: {

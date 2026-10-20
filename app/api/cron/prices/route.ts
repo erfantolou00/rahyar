@@ -7,7 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 // vercel.json calls this through the Tehran cash session (Sat–Wed 09:00–13:00) about every 15 minutes,
 // plus once each evening. Each expression runs at most once per day so a Hobby deploy stays valid.
-// Listed shares are stored only inside that session. Dollar, gold, and bitcoin refresh when older than 15 minutes.
+// Listed shares are stored only inside that session. Dollar, gold, coins, and bitcoin refresh when older than 15 minutes.
 // Deviation rows and notifications are written here, not when a page opens.
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;

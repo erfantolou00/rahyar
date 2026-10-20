@@ -11,9 +11,11 @@ import {
   readString,
 } from "@/lib/finance/parse";
 import { isPriceUnit } from "@/lib/finance/prices/unit";
+import { parseIsoDate } from "@/lib/finance/jalali";
+import { findListedMatch, isListedHolding, mergedListedPosition, type ListedRow } from "@/lib/finance/merge-holding";
 import { requireSession } from "@/lib/supabase/auth";
 
-function fail(code: "invalid" | "save"): never {
+function fail(code: "invalid" | "save" | "unit"): never {
   redirect(`/basket?error=${code}`);
 }
 
@@ -66,9 +68,45 @@ function refresh() {
 export async function createAsset(formData: FormData) {
   const { supabase } = await requireSession();
   const asset = readAsset(formData);
-  if (!asset) fail("invalid");
+  const acquiredOn = parseIsoDate(readString(formData, "acquired_on"));
+  if (!asset || !acquiredOn) fail("invalid");
 
-  const { error } = await supabase.from("assets").insert(asset);
+  if (isListedHolding(asset.type)) {
+    const rows = await supabase
+      .from("assets")
+      .select("id,symbol,quantity,avg_buy_price,price_unit,acquired_on,created_at")
+      .eq("type", asset.type)
+      .order("created_at", { ascending: true });
+    if (rows.error) {
+      console.error(rows.error);
+      fail("save");
+    }
+    const existing = findListedMatch((rows.data ?? []) as ListedRow[], asset.symbol);
+    if (existing) {
+      if (existing.price_unit !== asset.price_unit) fail("unit");
+      const merged = mergedListedPosition(existing, {
+        quantity: asset.quantity,
+        avgBuyPrice: asset.avg_buy_price,
+        acquiredOn,
+      });
+      const { error } = await supabase
+        .from("assets")
+        .update({
+          quantity: merged.quantity,
+          avg_buy_price: merged.avgBuyPrice,
+          acquired_on: merged.acquiredOn,
+        })
+        .eq("id", existing.id);
+      if (error) {
+        console.error(error);
+        fail("save");
+      }
+      refresh();
+      redirect("/basket");
+    }
+  }
+
+  const { error } = await supabase.from("assets").insert({ ...asset, acquired_on: acquiredOn });
   if (error) {
     console.error(error);
     fail("save");

@@ -1,5 +1,6 @@
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
 import type { FinanceClient, LoadResult } from "@/lib/finance/queries";
+import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
 import { fetchListedQuote } from "@/lib/finance/prices/listed";
 import { fetchCodalLetters, fetchCodalReport } from "@/lib/finance/codal/fetch";
 import {
@@ -246,12 +247,10 @@ export async function syncSymbolFundamentals(
 
 export async function ensureStockFundamentals(supabase: FinanceClient, userId: string): Promise<void> {
   try {
-    const assets = await supabase.from("assets").select("symbol").eq("user_id", userId).eq("type", "stock");
-    if (assets.error || !assets.data?.length) {
-      if (assets.error) console.error(assets.error);
-      return;
-    }
-    const symbols = [...new Set(assets.data.map((row) => row.symbol.trim()).filter(Boolean))];
+    const { feeds } = await loadPriceFeeds(supabase, userId);
+    const symbols = [
+      ...new Set(feeds.filter((feed) => feed.codalEnabled && feed.codalAvailable).map((feed) => feed.symbol)),
+    ];
     if (symbols.length === 0) return;
 
     const stored = await supabase

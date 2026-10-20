@@ -148,6 +148,7 @@ export type BasketPosition = PositionNumbers & {
   priceOrigin?: "live" | "manual" | "none";
   allocationClass?: AssetType;
   allocationClassSource?: "auto" | "manual";
+  acquiredOn?: string | null;
 };
 
 export type BasketRow = BasketPosition & ProfitLoss & {
@@ -193,6 +194,40 @@ export function profitAndLoss(position: PositionNumbers): ProfitLoss {
   const absolute = current - cost;
   const percent = cost === 0 ? null : (absolute / cost) * 100;
   return { cost, absolute, percent };
+}
+
+/** Change versus average buy, in rials. Holdings without both a buy price and a market price are left out. */
+export function portfolioCostChange(
+  assets: Asset[],
+  snapshot: PortfolioSnapshot,
+  prices: Price[],
+): { absolute: number | null; percent: number | null } {
+  const usd = latestQuote(prices, "USD");
+  const usdRial = usd ? toNumber(usd.price) : null;
+  const holdings = new Map(snapshot.holdings.map((holding) => [holding.id, holding]));
+  let cost = 0;
+  let absolute = 0;
+  let counted = 0;
+
+  for (const asset of assets) {
+    const holding = holdings.get(asset.id);
+    if (!holding || holding.price == null || asset.avg_buy_price == null) continue;
+    const unit: PriceUnit = asset.price_unit === "usd" ? "usd" : "rial";
+    const buy = amountInRial(toNumber(asset.avg_buy_price), unit, usdRial);
+    if (buy == null) continue;
+    const pnl = profitAndLoss({
+      quantity: toNumber(asset.quantity),
+      avgBuyPrice: buy,
+      currentPrice: holding.price,
+    });
+    if (pnl.cost == null || pnl.absolute == null) continue;
+    cost += pnl.cost;
+    absolute += pnl.absolute;
+    counted += 1;
+  }
+
+  if (counted === 0) return { absolute: null, percent: null };
+  return { absolute, percent: cost === 0 ? null : (absolute / cost) * 100 };
 }
 
 export function weightPercent(value: number | null, totalValue: number): number | null {

@@ -94,6 +94,7 @@ export function SubmitButton({ children }: { children: ReactNode }) {
 
 const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
+  unit: "این سهم یا صندوق از قبل با مبنای قیمت دیگری ثبت شده است.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
   prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
   push_missing: "ابتدا اعلان مرورگر را فعال کنید یا شناسه گفتگوی بله را ذخیره کنید.",

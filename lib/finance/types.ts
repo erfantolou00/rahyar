@@ -39,6 +39,7 @@ export type Asset = {
   price_unit: PriceUnit;
   allocation_class: AssetType;
   allocation_class_source: "auto" | "manual";
+  acquired_on: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -62,6 +63,26 @@ export type Price = {
   price: Numeric;
   source: string;
   timestamp: string;
+};
+
+export type PriceFeedRow = {
+  user_id: string;
+  asset_type: AssetType;
+  symbol: string;
+  price_enabled: boolean;
+  codal_enabled: boolean;
+  added: boolean;
+  created_at: string;
+};
+
+export type PriceDay = {
+  user_id: string;
+  asset_type: AssetType;
+  symbol: string;
+  day: string;
+  price: Numeric;
+  source: string;
+  quoted_at: string;
 };
 
 export type Allocation = {
