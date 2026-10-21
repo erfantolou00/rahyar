@@ -1,4 +1,5 @@
 import { fetchCodalDossier, fetchCodalReport } from "@/lib/finance/codal/fetch";
+import { fetchRahavardFundamentals } from "@/lib/finance/rahavard/statements";
 import {
   CodalShapeError,
   parseDividendPerShare,
@@ -38,8 +39,11 @@ export type FisReportContent = {
   inflation_fallback: boolean;
   buy_pe: number | null;
   exit_pe: number | null;
+  source?: FisFeed;
   stocks: FisStockReport[];
 };
+
+export type FisFeed = "codal" | "rahavard";
 
 const statusLabels: Record<FisStatus, string> = {
   enter: "ورود",
@@ -91,6 +95,7 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
   dividendRatio: number | null;
   salesPoints: SalesPoint[];
   olderPeriods: { period: string; months: number | null }[];
+  ttmEps: number | null;
   error: string | null;
 }> {
   const dossier = await fetchCodalDossier(symbol);
@@ -102,6 +107,7 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
       dividendRatio: null,
       salesPoints: knownSales,
       olderPeriods: [],
+      ttmEps: null,
       error: "فهرست نامه‌های کدال خوانده نشد.",
     };
   }
@@ -141,6 +147,7 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
     statementSalesGrowth,
     dividendRatio,
     salesPoints,
+    ttmEps: null,
     olderPeriods: dossier.statements.flatMap((item) => {
       if (item.role === "latest") return [];
       const period = periodFromTitle(item.letter.title);
@@ -219,11 +226,34 @@ function previousScores(rows: { content: Json }[]): Map<string, number | null> {
   return scores;
 }
 
+async function readRahavard(symbol: string): Promise<{
+  current: ParsedStatement | null;
+  prior: ParsedStatement | null;
+  statementSalesGrowth: number | null;
+  dividendRatio: number | null;
+  salesPoints: SalesPoint[];
+  olderPeriods: { period: string; months: number | null }[];
+  ttmEps: number | null;
+  error: string | null;
+}> {
+  const read = await fetchRahavardFundamentals(symbol);
+  return {
+    current: read.current ? { ...read.current, role: "latest" } : null,
+    prior: read.prior ? { ...read.prior, role: "prior-interim" } : null,
+    statementSalesGrowth: read.statementSalesGrowth,
+    dividendRatio: read.dividendRatio,
+    salesPoints: [],
+    olderPeriods: read.olderPeriods,
+    ttmEps: read.ttmEps,
+    error: read.error,
+  };
+}
+
 export async function publishFisReport(
   supabase: FinanceClient,
   akhzaPercent: number,
   inflationPercent: number | null,
-  options?: { only?: string | null; sheet?: ManualSheet | null; sheetSymbol?: string | null },
+  options?: { only?: string | null; sheet?: ManualSheet | null; sheetSymbol?: string | null; source?: FisFeed | null },
 ): Promise<{ ok: true; id: string } | { ok: false; code: "save" | "portfolio" | "symbol" }> {
   const portfolio = await loadPortfolio(supabase);
   if (!portfolio.ok) return { ok: false, code: "portfolio" };
@@ -250,10 +280,12 @@ export async function publishFisReport(
     .limit(12);
   const priorScores = history.error ? new Map<string, number | null>() : previousScores(history.data ?? []);
   const bands = valuationBands(akhzaPercent);
+  const feed: FisFeed = options?.source === "rahavard" ? "rahavard" : "codal";
+  const feedLabel = feed === "rahavard" ? "رهاورد" : "کدال";
   const assessed = await mapPool(stocks, 2, async (holding) => {
     const fundamental = fundamentals.get(holding.symbol);
     const knownSales = readSalesTrend(fundamental?.sales_trend ?? []);
-    const statements = await readStatements(holding.symbol, knownSales);
+    const statements = feed === "rahavard" ? await readRahavard(holding.symbol) : await readStatements(holding.symbol, knownSales);
     const posted = options?.sheetSymbol === holding.symbol ? options?.sheet ?? null : null;
     const stored = parseStoredSheet(fundamental?.manual_sheet);
     const sheet = posted && sheetHasNumbers(posted) ? posted : stored;
@@ -284,15 +316,15 @@ export async function publishFisReport(
       salesPoints: statements.salesPoints,
       period: statements.current?.period ?? null,
       fiscalYearScore: sheet?.fiscalYearScore ?? scoreFiscalYear(months, annualEndings(statements.current, statements.olderPeriods)),
-      ttmEps: sheet?.ttmEps ?? optionalNumber(fundamental?.eps),
+      ttmEps: sheet?.ttmEps ?? statements.ttmEps ?? optionalNumber(fundamental?.eps),
       owned: true,
       previousScore: priorScores.get(holding.symbol) ?? null,
       statementSalesGrowthPercent: manualGrowth ?? statements.statementSalesGrowth,
       dividendRatioPercent: sheet?.dividendRatioPercent ?? statements.dividendRatio,
     });
-    if (manual) observation.gaps.unshift("عددهایی که در فرم پر شده، به‌جای کدال نشسته‌اند.");
+    if (manual) observation.gaps.unshift(`عددهایی که در فرم پر شده، به‌جای ${feedLabel} نشسته‌اند.`);
     if (statements.error && !figures) observation.gaps.unshift(statements.error);
-    if (!figures) observation.gaps.unshift("صورت مالی قابل‌خواندن از کدال پیدا نشد.");
+    if (!figures) observation.gaps.unshift(`صورت مالی قابل‌خواندن از ${feedLabel} پیدا نشد.`);
     const result = assessFis(observation, akhzaPercent, inflationPercent);
     return {
       fallback: result.inflationFallback,
@@ -319,6 +351,7 @@ export async function publishFisReport(
     inflation_fallback: inflationFallback,
     buy_pe: bands?.buyPe ?? null,
     exit_pe: bands?.exitPe ?? null,
+    source: feed,
     stocks: assessed.map((item) => item.stock),
   };
   const { data, error } = await supabase
@@ -371,6 +404,7 @@ export function parseFisContent(value: Json): FisReportContent | null {
     inflation_fallback: value.inflation_fallback === true,
     buy_pe: typeof value.buy_pe === "number" ? value.buy_pe : null,
     exit_pe: typeof value.exit_pe === "number" ? value.exit_pe : null,
+    source: value.source === "rahavard" || value.source === "codal" ? value.source : undefined,
     stocks,
   };
 }

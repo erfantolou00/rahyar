@@ -46,11 +46,19 @@ export function FisManualForm({
   sheets: Record<string, ManualSheet>;
 }) {
   const [symbol, setSymbol] = useState(stocks[0]?.symbol ?? "");
+  const [source, setSource] = useState("codal");
   const sheet = sheets[symbol];
+  const sourceLabel = source === "rahavard" ? "رهاورد" : "کدال";
 
   return (
     <form action={createFisReport} className="grid gap-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Field label="منبع صورت‌ها">
+          <select name="source" value={source} onChange={(event) => setSource(event.target.value)} className={inputClass}>
+            <option value="codal">کدال</option>
+            <option value="rahavard">رهاورد ۳۶۵</option>
+          </select>
+        </Field>
         <Field label="سهم">
           <select name="symbol" value={symbol} onChange={(event) => setSymbol(event.target.value)} className={inputClass}>
             <option value="">همه سهم‌های سبد</option>
@@ -67,7 +75,7 @@ export function FisManualForm({
         </Field>
         <Field label="ماه گذشته از سال">
           <select key={`${symbol}-months`} name="months" defaultValue={textOf(sheet, "months")} className={inputClass}>
-            <option value="">از کدال</option>
+            <option value="">از منبع</option>
             <option value="3">۳</option>
             <option value="6">۶</option>
             <option value="9">۹</option>
@@ -78,7 +86,7 @@ export function FisManualForm({
       {symbol ? (
         <div key={symbol} className="grid gap-2">
           <p className="text-xs leading-5 text-muted-foreground">
-            مبالغ صورت به میلیون ریال است. قیمت و سود هر سهم به ریال. خانه خالی از کدال پر می‌شود.
+            مبالغ صورت به میلیون ریال است. قیمت و سود هر سهم به ریال. خانه خالی از {sourceLabel} پر می‌شود.
             {stocks.find((stock) => stock.symbol === symbol)?.price != null
               ? ` قیمت سبد ${stocks.find((stock) => stock.symbol === symbol)?.price} ریال است.`
               : ""}
@@ -96,7 +104,7 @@ export function FisManualForm({
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="ماه دوره کوتاه‌تر">
                 <select name="priorMonths" defaultValue={textOf(sheet, "priorMonths")} className={inputClass}>
-                  <option value="">از کدال</option>
+                  <option value="">از منبع</option>
                   <option value="3">۳</option>
                   <option value="6">۶</option>
                   <option value="9">۹</option>
@@ -104,7 +112,7 @@ export function FisManualForm({
               </Field>
               <Field label="پایان سال مالی">
                 <select name="fiscalYearScore" defaultValue={textOf(sheet, "fiscalYearScore")} className={inputClass}>
-                  <option value="">از کدال</option>
+                  <option value="">از منبع</option>
                   <option value="5">ثابت، دست‌کم ۹ ماه</option>
                   <option value="3">ثابت، ۶ تا ۸ ماه</option>
                   <option value="0">عوض شده یا کوتاه</option>
@@ -119,7 +127,7 @@ export function FisManualForm({
           </Fold>
         </div>
       ) : (
-        <p className="text-xs leading-5 text-muted-foreground">برای ورود دستی، یک سهم را انتخاب کنید. گزارش همه، عددهای ذخیره‌شده هر سهم را هم به کار می‌برد.</p>
+        <p className="text-xs leading-5 text-muted-foreground">برای ورود دستی، یک سهم را انتخاب کنید. گزارش همه، صورت‌ها را از {sourceLabel} می‌خواند و عددهای ذخیره‌شده هر سهم را هم به کار می‌برد.</p>
       )}
       <div className="flex flex-wrap gap-2">
         <button type="submit" name="scope" value="one" disabled={!symbol} className={primaryControlClass}>گزارش این سهم</button>

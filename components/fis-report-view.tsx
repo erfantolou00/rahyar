@@ -15,6 +15,7 @@ export function FisReportView({ content }: { content: FisReportContent }) {
   return (
     <div className="grid gap-2">
       <p className="text-sm leading-6 text-muted-foreground">
+        {content.source === "rahavard" ? "صورت‌ها از رهاورد ۳۶۵. " : content.source === "codal" ? "صورت‌ها از کدال. " : ""}
         اخزا <span className="numeric">{formatNumber(content.akhza_percent, 2)}</span>
         {" درصد. خرید تا "}
         <span className="numeric">{shown(content.buy_pe)}</span>

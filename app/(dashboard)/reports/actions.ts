@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { interpretWeeklyReport } from "@/lib/ai/interpret-weekly";
 import { readManualSheet, storedSheet, sheetHasNumbers } from "@/lib/finance/fis-manual";
 import { parseOptionalNumber, parseRequiredNumber, parseSymbol, readString } from "@/lib/finance/parse";
-import { publishFisReport } from "@/lib/finance/publish-fis";
+import { publishFisReport, type FisFeed } from "@/lib/finance/publish-fis";
 import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { loadPortfolio, snapshotJson, type FinanceClient } from "@/lib/finance/queries";
 import { requireSession } from "@/lib/supabase/auth";
@@ -47,6 +47,7 @@ export async function createFisReport(formData: FormData) {
   const inflation = inflationText ? parseOptionalNumber(inflationText, { min: -20, max: 400 }) : null;
   const sheet = readManualSheet(formData);
   const symbol = parseSymbol(readString(formData, "symbol"));
+  const source: FisFeed = readString(formData, "source") === "rahavard" ? "rahavard" : "codal";
   const oneStock = readString(formData, "scope") === "one";
   if (akhza == null || inflation === undefined || !sheet || (oneStock && !symbol)) redirect("/reports?error=invalid");
 
@@ -61,8 +62,8 @@ export async function createFisReport(formData: FormData) {
     akhza,
     inflation,
     oneStock
-      ? { only: symbol, sheet, sheetSymbol: symbol }
-      : { sheet: symbol && sheetHasNumbers(sheet) ? sheet : null, sheetSymbol: symbol },
+      ? { only: symbol, sheet, sheetSymbol: symbol, source }
+      : { sheet: symbol && sheetHasNumbers(sheet) ? sheet : null, sheetSymbol: symbol, source },
   );
   if (!result.ok) redirect(`/reports?error=${result.code === "symbol" ? "symbol" : "save"}`);
 
