@@ -14,6 +14,7 @@ import {
   type StatementFigures,
 } from "@/lib/finance/codal/parse";
 import { assessFis, FIS_PROPOSAL_VERSION, payoutPercent, salesGrowth, scoreFiscalYear, valuationBands, type FisFactor, type FisStatus } from "@/lib/finance/fis";
+import { latestScoreBySymbol, resolvePreviousScore } from "@/lib/finance/history";
 import { applyManualSheet, emptyStatement, parseStoredSheet, sheetHasNumbers, type ManualSheet } from "@/lib/finance/fis-manual";
 import { buildFisObservation } from "@/lib/finance/fis-observe";
 import { loadPortfolio, type FinanceClient } from "@/lib/finance/queries";
@@ -209,6 +210,23 @@ async function dividendRatioFromLetters(statements: ParsedStatement[], letters: 
   return ((ratios[0] ?? 0) + (ratios[1] ?? 0)) / 2;
 }
 
+function schemaGap(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204"
+    || error.code === "PGRST205"
+    || error.code === "42703"
+    || error.code === "42P01"
+    || /schema cache|does not exist|could not find the/i.test(error.message ?? "")
+  );
+}
+
+function scoreOrNull(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function previousScores(rows: { content: Json }[]): Map<string, number | null> {
   const scores = new Map<string, number | null>();
   for (const row of rows) {
@@ -278,7 +296,25 @@ export async function publishFisReport(
     .eq("type", "period")
     .order("created_at", { ascending: false })
     .limit(12);
-  const priorScores = history.error ? new Map<string, number | null>() : previousScores(history.data ?? []);
+  const reportedScores = history.error ? new Map<string, number | null>() : previousScores(history.data ?? []);
+  const storedScores = new Map<string, number | null>();
+  if (symbols.length > 0) {
+    const scoreHistory = await supabase
+      .from("stock_scores")
+      .select("symbol, score, as_of")
+      .in("symbol", symbols)
+      .order("as_of", { ascending: false });
+    if (scoreHistory.error) {
+      if (!schemaGap(scoreHistory.error)) console.error(scoreHistory.error);
+    } else {
+      const latest = latestScoreBySymbol((scoreHistory.data ?? []).map((row) => ({
+        symbol: row.symbol,
+        asOf: row.as_of,
+        score: scoreOrNull(row.score),
+      })));
+      for (const [symbol, score] of latest) storedScores.set(symbol, score);
+    }
+  }
   const bands = valuationBands(akhzaPercent);
   const feed: FisFeed = options?.source === "rahavard" ? "rahavard" : "codal";
   const feedLabel = feed === "rahavard" ? "رهاورد" : "کدال";
@@ -318,7 +354,10 @@ export async function publishFisReport(
       fiscalYearScore: sheet?.fiscalYearScore ?? scoreFiscalYear(months, annualEndings(statements.current, statements.olderPeriods)),
       ttmEps: sheet?.ttmEps ?? statements.ttmEps ?? optionalNumber(fundamental?.eps),
       owned: true,
-      previousScore: priorScores.get(holding.symbol) ?? null,
+      previousScore: resolvePreviousScore(
+        storedScores.has(holding.symbol) ? storedScores.get(holding.symbol) ?? null : undefined,
+        reportedScores.get(holding.symbol) ?? null,
+      ),
       statementSalesGrowthPercent: manualGrowth ?? statements.statementSalesGrowth,
       dividendRatioPercent: sheet?.dividendRatioPercent ?? statements.dividendRatio,
     });
@@ -328,6 +367,7 @@ export async function publishFisReport(
     const result = assessFis(observation, akhzaPercent, inflationPercent);
     return {
       fallback: result.inflationFallback,
+      observation,
       stock: {
         symbol: holding.symbol,
         owned: true,
@@ -360,6 +400,27 @@ export async function publishFisReport(
     .select("id")
     .single();
   if (error || !data) return { ok: false, code: "save" };
+  if (assessed.length > 0) {
+    const asOf = new Date().toISOString();
+    const scored = await supabase.from("stock_scores").insert(assessed.map((item) => ({
+      symbol: item.stock.symbol,
+      as_of: asOf,
+      trigger: "manual" as const,
+      score: item.stock.score,
+      status: item.stock.status,
+      model_version: FIS_PROPOSAL_VERSION,
+      factors: item.stock.factors as unknown as Json,
+      observation: item.observation as unknown as Json,
+      forward_pe: item.stock.forward_pe,
+    })));
+    if (scored.error) {
+      console.error(scored.error);
+      if (!schemaGap(scored.error)) {
+        await supabase.from("reports").delete().eq("id", data.id);
+        return { ok: false, code: "save" };
+      }
+    }
+  }
   return { ok: true, id: data.id };
 }
 
