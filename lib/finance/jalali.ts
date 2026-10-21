@@ -30,7 +30,7 @@ function mod(a: number, b: number): number {
 
 function jalCal(jy: number): { leap: number; gy: number; march: number } {
   const bl = breaks.length;
-  let gy = jy + 621;
+  const gy = jy + 621;
   let leapJ = -14;
   let jp = breaks[0] ?? 0;
   if (jy < jp || jy >= (breaks[bl - 1] ?? 0)) {

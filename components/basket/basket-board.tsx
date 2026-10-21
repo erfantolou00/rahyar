@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { LineChart } from "lucide-react";
 import { createAsset, deleteAsset, moveCash, sellHolding, updateAsset } from "@/app/(dashboard)/basket/actions";
@@ -50,6 +50,7 @@ export function BasketBoard({
   totalTone,
   fundamentals,
   fundamentalsSchema,
+  historyMissing,
   ledgerReady,
   accounts,
   positions,
@@ -62,6 +63,7 @@ export function BasketBoard({
   totalTone: ValueTone;
   fundamentals: PresentedFundamental[];
   fundamentalsSchema: boolean | null;
+  historyMissing: boolean;
   ledgerReady: boolean;
   accounts: BasketAccount[];
   positions: BasketPosition[];
@@ -128,7 +130,7 @@ export function BasketBoard({
       </div>
 
       <div className={tab === "fundamentals" ? "grid gap-4" : "hidden"}>
-        <FundamentalsPanel rows={fundamentals} schemaIssue={fundamentalsSchema} />
+        <FundamentalsPanel rows={fundamentals} schemaIssue={fundamentalsSchema} historyMissing={historyMissing} />
       </div>
 
       {tab === "holdings" ? (
@@ -522,11 +524,16 @@ export type BasketPosition = {
 };
 
 function EntryKey() {
-  const [entryKey, setEntryKey] = useState("");
-  useEffect(() => {
-    setEntryKey(crypto.randomUUID());
-  }, []);
-  return <input type="hidden" name="idempotency_key" value={entryKey} />;
+  return (
+    <input
+      type="hidden"
+      name="idempotency_key"
+      defaultValue=""
+      ref={(node) => {
+        if (node && !node.value) node.value = crypto.randomUUID();
+      }}
+    />
+  );
 }
 
 function SaveButton({ children }: { children: React.ReactNode }) {

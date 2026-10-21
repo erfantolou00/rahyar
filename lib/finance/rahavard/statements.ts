@@ -320,6 +320,49 @@ export function parseRahavardFundamentals(input: {
   };
 }
 
+export type RahavardHistoryStatement = {
+  period: string;
+  months: number;
+  figures: StatementFigures;
+};
+
+export function listRahavardStatements(input: {
+  interim: unknown;
+  annual: unknown;
+  balance: unknown;
+}): RahavardHistoryStatement[] {
+  let income: SheetRow[];
+  let balance: SheetRow[];
+  try {
+    income = dedupe([...rowsFrom(input.interim), ...rowsFrom(input.annual)]);
+    balance = dedupe(rowsFrom(input.balance));
+  } catch (error) {
+    if (error instanceof RahavardShapeError) return [];
+    throw error;
+  }
+  const usable = income.filter((row) => findLine(row, isSales) != null && findLine(row, isNet) != null);
+  const listed: RahavardHistoryStatement[] = [];
+  for (const row of usable) {
+    const currentFy = fyStamp(row.fiscalYear);
+    const yoy = currentFy
+      ? usable.find((item) => {
+        const stamp = fyStamp(item.fiscalYear);
+        return stamp != null && stamp.year === currentFy.year - 1 && stamp.monthDay === currentFy.monthDay && item.months === row.months;
+      }) ?? null
+      : null;
+    const opening = currentFy
+      ? balance.find((item) => {
+        const stamp = fyStamp(item.fiscalYear);
+        return item.months === 12 && stamp != null && stamp.year === currentFy.year - 1 && stamp.monthDay === currentFy.monthDay;
+      }) ?? null
+      : null;
+    const built = withFigures(row, balance, findLine(opening, isInventory), findLine(yoy, isSales));
+    if (!built) continue;
+    listed.push(built);
+  }
+  return listed.sort((left, right) => right.period.localeCompare(left.period) || right.months - left.months);
+}
+
 async function readSheet(path: string): Promise<unknown> {
   const filtered = await fetchRahavardJson(`${path}&financial_view_type_id=1`, READ_TIMEOUT);
   const data = asRecord(filtered)?.data;
@@ -327,29 +370,56 @@ async function readSheet(path: string): Promise<unknown> {
   return fetchRahavardJson(path, READ_TIMEOUT);
 }
 
+async function loadRahavardSheets(
+  symbol: string,
+  counts: { interim: number; annual: number; interimBalance: number; annualBalance: number },
+): Promise<{ interim: unknown; annual: unknown; balance: { data: unknown[] }; asset: unknown } | null> {
+  const found = matchRahavard(
+    parseRahavardSearch(await fetchRahavardJson(`/api/v2/search?keyword=${encodeURIComponent(symbol)}`)),
+    symbol,
+  );
+  if (!found) return null;
+  const id = found.id;
+  const [interim, annual, interimBalance, annualBalance, asset] = await Promise.all([
+    readSheet(`/api/v2/asset/${id}/profitloss?_skip=0&_count=${counts.interim}&announcement_type_id=3`),
+    readSheet(`/api/v2/asset/${id}/profitloss?_skip=0&_count=${counts.annual}&announcement_type_id=1`),
+    readSheet(`/api/v2/asset/${id}/balancesheets?_skip=0&_count=${counts.interimBalance}&announcement_type_id=3`),
+    readSheet(`/api/v2/asset/${id}/balancesheets?_skip=0&_count=${counts.annualBalance}&announcement_type_id=1`),
+    fetchRahavardJson(`/api/v2/asset/${id}`, READ_TIMEOUT).catch(() => null),
+  ]);
+  const balance = asRecord(interimBalance);
+  const annualRows = asRecord(annualBalance);
+  return {
+    interim,
+    annual,
+    balance: {
+      data: [...(Array.isArray(balance?.data) ? balance.data : []), ...(Array.isArray(annualRows?.data) ? annualRows.data : [])],
+    },
+    asset,
+  };
+}
+
+const FUNDAMENTAL_COUNTS = { interim: 20, annual: 6, interimBalance: 16, annualBalance: 6 };
+const HISTORY_COUNTS = { interim: 24, annual: 8, interimBalance: 24, annualBalance: 8 };
+
 export async function fetchRahavardFundamentals(symbol: string): Promise<RahavardFundamentals> {
   try {
-    const found = matchRahavard(
-      parseRahavardSearch(await fetchRahavardJson(`/api/v2/search?keyword=${encodeURIComponent(symbol)}`)),
-      symbol,
-    );
-    if (!found) return blank("نماد در رهاورد پیدا نشد.");
-    const id = found.id;
-    const [interim, annual, interimBalance, annualBalance, asset] = await Promise.all([
-      readSheet(`/api/v2/asset/${id}/profitloss?_skip=0&_count=20&announcement_type_id=3`),
-      readSheet(`/api/v2/asset/${id}/profitloss?_skip=0&_count=6&announcement_type_id=1`),
-      readSheet(`/api/v2/asset/${id}/balancesheets?_skip=0&_count=16&announcement_type_id=3`),
-      readSheet(`/api/v2/asset/${id}/balancesheets?_skip=0&_count=6&announcement_type_id=1`),
-      fetchRahavardJson(`/api/v2/asset/${id}`, READ_TIMEOUT).catch(() => null),
-    ]);
-    const balance = asRecord(interimBalance);
-    const annualRows = asRecord(annualBalance);
-    const merged = {
-      data: [...(Array.isArray(balance?.data) ? balance.data : []), ...(Array.isArray(annualRows?.data) ? annualRows.data : [])],
-    };
-    return parseRahavardFundamentals({ interim, annual, balance: merged, asset });
+    const sheets = await loadRahavardSheets(symbol, FUNDAMENTAL_COUNTS);
+    if (!sheets) return blank("نماد در رهاورد پیدا نشد.");
+    return parseRahavardFundamentals(sheets);
   } catch (error) {
     if (error instanceof RahavardShapeError || error instanceof MarketShapeError) return blank("ساختار صورت رهاورد عوض شده.");
     return blank("رهاورد خوانده نشد.");
+  }
+}
+
+export async function fetchRahavardHistory(symbol: string): Promise<RahavardHistoryStatement[]> {
+  try {
+    const sheets = await loadRahavardSheets(symbol, HISTORY_COUNTS);
+    if (!sheets) return [];
+    return listRahavardStatements(sheets);
+  } catch (error) {
+    if (error instanceof RahavardShapeError || error instanceof MarketShapeError) return [];
+    return [];
   }
 }

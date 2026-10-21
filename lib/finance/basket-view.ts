@@ -57,7 +57,17 @@ export type PresentedFundamental = {
   shapeError: string | null;
   fetchedLabel: string;
   report: PresentedReport | null;
+  historySummary: string;
+  historyPeriods: { tracingNo: string; period: string; kindLabel: string; revisionOf: string | null }[];
+  historyMonths: { period: string; sales: string }[];
 };
+
+type HistoryInput = {
+  periods: { symbol: string; period: string; kind: "interim" | "annual"; tracing_no: string; revision_of: string | null }[];
+  months: { symbol: string; period: string; sales_value: Numeric | null }[];
+};
+
+const emptyHistory: HistoryInput = { periods: [], months: [] };
 
 export type PresentedBasket = {
   rows: PresentedRow[];
@@ -149,10 +159,12 @@ function presentReport(value: StockFundamentals["market_report"]): PresentedRepo
 export function presentFundamentals(
   symbols: string[],
   rows: StockFundamentals[],
+  history: HistoryInput = emptyHistory,
   now = Date.now(),
 ): PresentedFundamental[] {
   return symbols.map((symbol) => {
     const row = rows.find((item) => item.symbol.trim() === symbol.trim());
+    const stored = presentHistory(symbol, history);
     if (!row) {
       return {
         symbol,
@@ -167,6 +179,7 @@ export function presentFundamentals(
         shapeError: null,
         fetchedLabel: "هنوز خوانده نشده",
         report: null,
+        ...stored,
       };
     }
     const age = priceAge(row.fetched_at, now);
@@ -186,8 +199,31 @@ export function presentFundamentals(
       shapeError: row.shape_error,
       fetchedLabel: age.label,
       report: presentReport(row.market_report),
+      ...stored,
     };
   });
+}
+
+function presentHistory(symbol: string, history: HistoryInput): Pick<PresentedFundamental, "historySummary" | "historyPeriods" | "historyMonths"> {
+  const wanted = symbol.trim();
+  const periods = history.periods.filter((item) => item.symbol.trim() === wanted);
+  const months = history.months.filter((item) => item.symbol.trim() === wanted);
+  const distinct = new Set(periods.map((item) => item.period)).size;
+  return {
+    historySummary: periods.length === 0 && months.length === 0
+      ? "تاریخچه‌ای ذخیره نشده"
+      : `${formatNumber(distinct)} فصل، ${formatNumber(months.length)} ماه`,
+    historyPeriods: periods.map((item) => ({
+      tracingNo: item.tracing_no,
+      period: item.period,
+      kindLabel: item.kind === "annual" ? "سالانه" : "میان‌دوره‌ای",
+      revisionOf: item.revision_of,
+    })),
+    historyMonths: months.map((item) => ({
+      period: item.period,
+      sales: item.sales_value == null || item.sales_value === "" ? "—" : formatNumber(toNumber(item.sales_value), 0),
+    })),
+  };
 }
 
 export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[] {

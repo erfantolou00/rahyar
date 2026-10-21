@@ -228,6 +228,45 @@ export async function loadStockFundamentals(
   );
 }
 
+export async function loadStockHistory(
+  supabase: FinanceClient,
+  symbols: string[],
+): Promise<LoadResult<{
+  periods: { symbol: string; period: string; kind: "interim" | "annual"; tracing_no: string; revision_of: string | null }[];
+  months: { symbol: string; period: string; sales_value: StockFundamentals["pe"] }[];
+}>> {
+  if (symbols.length === 0) return { ok: true, data: { periods: [], months: [] } };
+  const periods = await supabase
+    .from("stock_periods")
+    .select("symbol, period, kind, tracing_no, revision_of")
+    .in("symbol", symbols)
+    .order("period", { ascending: false });
+  if (periods.error) {
+    console.error(periods.error);
+    return { ok: false, missingSchema: missingSchema(periods.error) };
+  }
+  const months = await supabase
+    .from("stock_monthly")
+    .select("symbol, period, sales_value")
+    .in("symbol", symbols)
+    .order("period", { ascending: false });
+  if (months.error) {
+    console.error(months.error);
+    return { ok: false, missingSchema: missingSchema(months.error) };
+  }
+  return {
+    ok: true,
+    data: {
+      periods: (periods.data ?? []).flatMap((row) => (
+        row.kind === "interim" || row.kind === "annual"
+          ? [{ symbol: row.symbol, period: row.period, kind: row.kind, tracing_no: row.tracing_no, revision_of: row.revision_of }]
+          : []
+      )),
+      months: months.data ?? [],
+    },
+  };
+}
+
 export async function loadLivePrices(supabase: FinanceClient): Promise<Price[]> {
   const results = await Promise.all(
     liveSymbols.map((symbol) =>

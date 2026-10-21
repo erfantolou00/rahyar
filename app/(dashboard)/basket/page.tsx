@@ -3,10 +3,11 @@ import { BasketBoard } from "@/components/basket/basket-board";
 import { Notice, PageHeader, SchemaNotice, errorMessage } from "@/components/chrome";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { presentBasket, presentFundamentals, presentMarks } from "@/lib/finance/basket-view";
-import { loadBasket, loadLedger, loadLivePrices, loadStockFundamentals } from "@/lib/finance/queries";
+import { loadBasket, loadLedger, loadLivePrices, loadStockFundamentals, loadStockHistory } from "@/lib/finance/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "سبد دارایی" };
+export const maxDuration = 300;
 
 export default async function BasketPage({
   searchParams,
@@ -29,6 +30,7 @@ export default async function BasketPage({
   const stockSymbols = [
     ...new Set(view.rows.filter((row) => row.values.type === "stock").map((row) => row.values.symbol.trim()).filter(Boolean)),
   ];
+  const history = await loadStockHistory(supabase, stockSymbols);
 
   return (
     <div>
@@ -45,8 +47,9 @@ export default async function BasketPage({
         totalAbsolute={view.totalAbsolute}
         totalPercent={view.totalPercent}
         totalTone={view.totalTone}
-        fundamentals={fundamentals.ok ? presentFundamentals(stockSymbols, fundamentals.data) : []}
+        fundamentals={fundamentals.ok ? presentFundamentals(stockSymbols, fundamentals.data, history.ok ? history.data : undefined) : []}
         fundamentalsSchema={fundamentals.ok ? null : fundamentals.missingSchema}
+        historyMissing={!history.ok && history.missingSchema}
         ledgerReady={ledger.ready}
         accounts={ledger.accounts}
         positions={ledger.positions}

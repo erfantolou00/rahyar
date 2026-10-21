@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatNumber } from "@/lib/finance/format";
 import { todayKey } from "@/lib/finance/holding-growth";
 import type { PriceUnit } from "@/lib/finance/prices/unit";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 
 const kindLabels = {
@@ -112,10 +112,6 @@ function TransferForm({
   holdings: { id: string; name: string; currency: PriceUnit }[];
 }) {
   const [assetId, setAssetId] = useState(holdings[0]?.id ?? "");
-  const [entryKey, setEntryKey] = useState("");
-  useEffect(() => {
-    setEntryKey(crypto.randomUUID());
-  }, []);
   const currency = holdings.find((holding) => holding.id === assetId)?.currency ?? "rial";
   if (holdings.length === 0) {
     return <p className="text-sm text-muted-foreground">برای انتقال، اول یک دارایی در سبد لازم است.</p>;
@@ -123,7 +119,14 @@ function TransferForm({
   return (
     <form action={transferHolding} className="grid gap-3">
       <p className="text-sm font-medium">انتقال بین حساب‌ها</p>
-      <input type="hidden" name="idempotency_key" value={entryKey} />
+      <input
+        type="hidden"
+        name="idempotency_key"
+        defaultValue=""
+        ref={(node) => {
+          if (node && !node.value) node.value = crypto.randomUUID();
+        }}
+      />
       <select
         name="id"
         required
