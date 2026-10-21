@@ -16,7 +16,10 @@ import {
   readSalesTrend,
   type CodalLetter,
   type SalesPoint,
+  type StatementFigures,
 } from "@/lib/finance/codal/parse";
+import { monthFromPoint, periodFromStatement, type PlannedMonth, type PlannedPeriod } from "@/lib/finance/history";
+import { saveFundamentalHistory } from "@/lib/finance/history-store";
 import type { Numeric, StockFundamentals } from "@/lib/finance/types";
 
 const FRESH_OK_MS = 6 * 60 * 60 * 1000;
@@ -64,43 +67,75 @@ function clip(value: string, max: number): string {
 }
 
 async function readStatement(letter: CodalLetter | null): Promise<{
-  figures: { sales: number | null; netIncome: number | null; equity: number | null; periodEps: number | null };
+  figures: StatementFigures | null;
   notes: string[];
   source: string | null;
 }> {
-  const empty = { sales: null, netIncome: null, equity: null, periodEps: null };
-  if (!letter) return { figures: empty, notes: [], source: null };
+  if (!letter) return { figures: null, notes: [], source: null };
   const report = await fetchCodalReport(letter);
-  if (!report) return { figures: empty, notes: ["فایل صورت مالی کدال دریافت نشد."], source: null };
+  if (!report) return { figures: null, notes: ["فایل صورت مالی کدال دریافت نشد."], source: null };
   try {
-    const figures = parseStatementHtml(report.html);
-    return { figures, notes: [], source: report.source };
+    return { figures: parseStatementHtml(report.html), notes: [], source: report.source };
   } catch (error) {
     const message = error instanceof CodalShapeError ? error.message : "صورت مالی کدال خوانده نشد.";
-    return { figures: empty, notes: [message], source: report.source };
+    return { figures: null, notes: [message], source: report.source };
   }
 }
 
-async function readMonthlySales(letters: ReturnType<typeof selectMonthlyLetters>): Promise<{ points: SalesPoint[]; notes: string[] }> {
+async function readMonthlySales(letters: CodalLetter[]): Promise<{
+  points: SalesPoint[];
+  notes: string[];
+  stored: { point: SalesPoint; tracingNo: string; source: string }[];
+}> {
   const parsed = await Promise.all(
     letters.map(async (letter) => {
       const report = await fetchCodalReport(letter);
-      if (!report) return { point: null, note: "فایل گزارش ماهانه کدال دریافت نشد." };
+      if (!report) return { point: null, note: "فایل گزارش ماهانه کدال دریافت نشد.", tracingNo: String(letter.tracingNo), source: null as string | null };
       try {
-        return { point: parseMonthlySalesHtml(report.html, letter.title), note: null };
+        return { point: parseMonthlySalesHtml(report.html, letter.title), note: null, tracingNo: String(letter.tracingNo), source: report.source };
       } catch (error) {
         const message = error instanceof CodalShapeError ? error.message : "گزارش ماهانه کدال خوانده نشد.";
-        return { point: null, note: message };
+        return { point: null, note: message, tracingNo: String(letter.tracingNo), source: report.source };
       }
     }),
   );
   return {
     points: parsed.flatMap((item) => (item.point ? [item.point] : [])),
     notes: parsed.flatMap((item) => (item.note ? [item.note] : [])),
+    stored: parsed.flatMap((item) => (item.point && item.source ? [{ point: item.point, tracingNo: item.tracingNo, source: item.source }] : [])),
   };
 }
 
-async function mapPool<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
+async function rememberParsedHistory(
+  supabase: FinanceClient,
+  userId: string,
+  symbol: string,
+  input: {
+    statement: { letter: CodalLetter; letters: CodalLetter[]; figures: StatementFigures; source: string } | null;
+    months: { point: SalesPoint; tracingNo: string; source: string }[];
+  },
+): Promise<void> {
+  const periods: PlannedPeriod[] = [];
+  if (input.statement) {
+    const built = periodFromStatement(input.statement);
+    if (built.row) periods.push(built.row);
+  }
+  const months: PlannedMonth[] = [];
+  for (const item of input.months) {
+    const row = monthFromPoint({
+      period: item.point.period,
+      sales: item.point.sales,
+      tracingNo: item.tracingNo,
+      source: item.source,
+    });
+    if (row) months.push(row);
+  }
+  if (periods.length === 0 && months.length === 0) return;
+  const saved = await saveFundamentalHistory(supabase, userId, symbol, periods, months);
+  if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} history was not stored: ${saved.message}`);
+}
+
+export async function mapPool<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
   let index = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (index < items.length) {
@@ -150,7 +185,10 @@ export async function syncSymbolFundamentals(
     readMonthlySales(monthlyLetters),
     fetchListedQuote(symbol),
   ]);
-  const { sales, netIncome, equity, periodEps } = statementOutcome.figures;
+  const sales = statementOutcome.figures?.sales ?? null;
+  const netIncome = statementOutcome.figures?.netIncome ?? null;
+  const equity = statementOutcome.figures?.equity ?? null;
+  const periodEps = statementOutcome.figures?.periodEps ?? null;
   shapeNotes.push(...statementOutcome.notes);
   if (monthlyOutcome.points.length === 0) shapeNotes.push(...monthlyOutcome.notes);
   if (statementOutcome.source) source = `${source}+${statementOutcome.source}`.slice(0, 80);
@@ -200,6 +238,18 @@ export async function syncSymbolFundamentals(
     console.error(saved.error);
     return { ok: false, missingSchema: schemaGap(saved.error) };
   }
+
+  await rememberParsedHistory(supabase, userId, symbol, {
+    statement: statementLetter && statementOutcome.figures && statementOutcome.source
+      ? {
+        letter: statementLetter,
+        letters: dossier?.statementLetters ?? [statementLetter],
+        figures: statementOutcome.figures,
+        source: statementOutcome.source,
+      }
+      : null,
+    months: monthlyOutcome.stored,
+  });
 
   const previousTracing = previous?.latest_tracing_no ?? null;
   const nextTracing = newest ? String(newest.tracingNo) : null;

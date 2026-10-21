@@ -110,6 +110,7 @@ async function searchPages(
 
 export type CodalDossier = {
   statements: ChosenStatement[];
+  statementLetters: CodalLetter[];
   monthly: CodalLetter[];
   dividends: CodalLetter[];
   newest: CodalLetter | null;
@@ -156,13 +157,55 @@ export async function fetchCodalDossier(symbol: string): Promise<CodalDossier | 
   if (!queries.some((query) => query.reached)) return null;
   const all = queries.flatMap((query) => query.letters);
   const newest = all.slice().sort((left, right) => right.tracingNo - left.tracingNo)[0] ?? null;
+  const statementPool = [...statementLetters.letters, ...general.letters].filter(isFinancialStatement);
   return {
-    statements: selectFisStatementLetters([...statementLetters.letters, ...general.letters]),
+    statements: selectFisStatementLetters(statementPool),
+    statementLetters: statementPool,
     monthly: selectMonthlyLetters([...monthlyLetters.letters, ...general.letters], 18),
     dividends: selectDividendLetters([...decisions.letters, ...summaries.letters, ...schedules.letters, ...general.letters]),
     newest,
     source: "codal-search:issuer",
   };
+}
+
+function distinctPeriods(letters: CodalLetter[], accept: (letter: CodalLetter) => boolean): number {
+  const periods = new Set<string>();
+  for (const letter of letters) {
+    if (!accept(letter)) continue;
+    const period = periodFromTitle(letter.title);
+    if (period) periods.add(period);
+  }
+  return periods.size;
+}
+
+export async function fetchCodalStatementLetters(
+  symbol: string,
+  periods: number,
+): Promise<{ letters: CodalLetter[]; reached: boolean }> {
+  const enough = (letters: CodalLetter[]) => distinctPeriods(letters, isFinancialStatement) >= periods;
+  const byCode = await searchPages(
+    symbol,
+    `Category=-1&LetterType=-1&LetterCode=${encodeURIComponent("ن-10")}`,
+    6,
+    enough,
+  );
+  if (byCode.letters.some(isFinancialStatement)) return byCode;
+  return searchPages(symbol, "Category=1&LetterType=6", 6, enough);
+}
+
+export async function fetchCodalMonthlyLetters(
+  symbol: string,
+  periods: number,
+): Promise<{ letters: CodalLetter[]; reached: boolean }> {
+  const enough = (letters: CodalLetter[]) => distinctPeriods(letters, isMonthlyActivity) >= periods;
+  const byCode = await searchPages(
+    symbol,
+    `Category=3&LetterType=-1&LetterCode=${encodeURIComponent("ن-30")}`,
+    4,
+    enough,
+  );
+  if (byCode.letters.some(isMonthlyActivity)) return byCode;
+  return searchPages(symbol, "Category=3&LetterType=58", 4, enough);
 }
 
 export async function fetchCodalLetters(symbol: string): Promise<{ letters: CodalLetter[]; source: string } | null> {
