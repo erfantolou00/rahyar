@@ -4,6 +4,7 @@ import {
   fisProfit,
   payoutPercent,
   salesGrowth,
+  scoreFiscalYear,
   sharesFromEarnings,
   valuationBands,
   type FisObservation,
@@ -106,6 +107,11 @@ describe("statement helpers", () => {
   it("scales million-rial earnings into a share count", () => {
     expect(sharesFromEarnings(120, 62)).toBeCloseTo((120 * 1_000_000) / 62);
     expect(payoutPercent(240, 120, 62, 300)).toBeCloseTo((240 * ((120 * 1_000_000) / 62)) / (300 * 1_000_000) * 100);
+    expect(scoreFiscalYear(9, ["09/30", "09/30"])).toBe(5);
+    expect(scoreFiscalYear(6, ["09/30", "09/30"])).toBe(3);
+    expect(scoreFiscalYear(9, ["09/30", "12/29"])).toBe(0);
+    expect(scoreFiscalYear(9, ["09/30"])).toBeNull();
+    expect(scoreFiscalYear(3, ["09/30", "09/30"])).toBe(0);
     expect(salesGrowth(110, 100)).toBe(10);
   });
 });

@@ -379,6 +379,15 @@ export function fisProfit(
   return { profit: operatingProfit - otherOperatingIncome, operatingOnly: false };
 }
 
+export function scoreFiscalYear(months: number | null, annualEndings: string[]): 0 | 3 | 5 | null {
+  if (months == null) return null;
+  if (months < 6) return 0;
+  const endings = annualEndings.filter((item) => /^\d{2}\/\d{2}$/.test(item));
+  if (new Set(endings).size > 1) return 0;
+  if (endings.length < 2) return null;
+  return months >= 9 ? 5 : 3;
+}
+
 export function periodDays(months: number | null): number | null {
   if (months == null) return null;
   if (months === 3) return 90;

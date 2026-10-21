@@ -105,6 +105,7 @@ describe("Codal statement and monthly parsers", () => {
       priorInventory: 70,
       cogs: -601,
       retainedEarnings: 300,
+      priorPeriodSales: null,
     });
     expect(parseCodalNumber("(۶۰۱,۵۰۸)")).toBe(-601508);
   });
@@ -137,6 +138,47 @@ describe("Codal statement and monthly parsers", () => {
     expect(figures.sales).toBe(500);
     expect(figures.netIncome).toBe(80);
     expect(figures.equity).toBe(900);
+  });
+
+  it("reads the income statement instead of the later equity rollforward", () => {
+    const html = `
+      <table>
+        <tr><td>شرح</td><td>دوره منتهی به ۱۴۰۵/۰۶/۳۱</td><td>تجدید ارائه شده دوره منتهی به ۱۴۰۴/۰۶/۳۱</td><td>درصد تغییر</td></tr>
+        <tr><td>درآمدهای عملیاتی</td><td>۲۵,۳۷۹,۸۵۷</td><td>۱۰,۵۳۸,۱۳۵</td><td>۱۴۱</td></tr>
+        <tr><td>بهای تمام شده درآمدهای عملیاتی</td><td>(۱۴,۲۹۹,۳۱۲)</td></tr>
+        <tr><td>سایر درآمدها</td><td>۳۰۸,۸۷۹</td></tr>
+        <tr><td>سود(زیان) عملیاتی</td><td>۱۰,۶۳۸,۷۸۰</td></tr>
+        <tr><td>سود(زیان) پایه هر سهم:</td></tr>
+        <tr><td>سود(زیان) پایه هر سهم</td><td>۱,۱۶۱</td></tr>
+        <tr><td>سود (زیان) خالص هر سهم – ریال</td><td>۱,۱۶۲</td></tr>
+        <tr><td>سود(زیان) خالص</td><td>۶,۲۷۲,۶۳۵</td><td>۳,۹۵۸,۸۵۴</td><td>۵۰,۲۸۷,۱۴۹</td></tr>
+      </table>
+      <table>
+        <tr><td>سود(زیان) خالص گزارش شده در صورت‌های مالی سال ۱۴۰۴/۰۹/۳۰</td><td>۵۰,۲۸۷,۱۴۹</td></tr>
+        <tr><td>سود (زیان) خالص در دوره ۹ ماهه منتهی به ۱۴۰۵/۰۶/۳۱</td><td>۶,۲۷۲,۶۳۵</td></tr>
+      </table>
+      <table>
+        <tr><td>دریافتنی‌های تجاری و سایر دریافتنی‌ها</td><td>۱۶,۳۵۸,۸۱۹</td></tr>
+        <tr><td>موجودی مواد و کالا</td><td>۴,۸۹۳,۱۸۶</td><td>۱,۴۱۹,۸۸۲</td></tr>
+        <tr><td>سود(زیان) انباشته</td><td>۱۲,۷۸۷,۵۲۵</td></tr>
+        <tr><td>جمع حقوق مالکانه</td><td>۱۸,۷۲۷,۵۲۵</td></tr>
+        <tr><td>جمع دارایی‌ها</td><td>۳۶,۴۰۹,۲۰۵</td></tr>
+      </table>`;
+    expect(parseStatementHtml(html)).toMatchObject({
+      sales: 25379857,
+      priorPeriodSales: 10538135,
+      cogs: -14299312,
+      otherOperatingIncome: 308879,
+      operatingProfit: 10638780,
+      netIncome: 6272635,
+      periodEps: 1162,
+      receivables: 16358819,
+      inventory: 4893186,
+      priorInventory: 1419882,
+      retainedEarnings: 12787525,
+      equity: 18727525,
+      totalAssets: 36409205,
+    });
   });
 
   it("uses the separate statement when the consolidated one comes first", () => {

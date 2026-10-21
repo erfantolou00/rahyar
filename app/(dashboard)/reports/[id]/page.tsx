@@ -30,7 +30,7 @@ export default async function ReportDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ delivery?: string; interpret?: string }>;
+  searchParams: Promise<{ delivery?: string; interpret?: string; sheet?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -50,6 +50,9 @@ export default async function ReportDetailPage({
   const fis = parseFisContent(report.content);
   const note = deliveryNote(query.delivery);
   const interpretNote = interpretStatusMessage(query.interpret);
+  const sheetNote = query.sheet === "missing"
+    ? "گزارش با عددهای همین فرم ساخته شد، ولی برای دفعه بعد ذخیره نشد. در Supabase فایل manual_sheet را اجرا کنید."
+    : null;
 
   return (
     <div>
@@ -66,6 +69,7 @@ export default async function ReportDetailPage({
         }
       />
       {note ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{note}</p> : null}
+      {sheetNote ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{sheetNote}</p> : null}
       {interpretNote ? <p className="mb-4 text-sm leading-7 text-danger">{interpretNote}</p> : null}
       {weekly && !weekly.commentary ? <div className="mb-4"><InterpretReportButton reportId={report.id} /></div> : null}
       {report.type === "weekly" && weekly ? (

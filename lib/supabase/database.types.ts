@@ -271,6 +271,7 @@ export type Database = {
           source: string;
           shape_error?: string | null;
           market_report?: Json;
+          manual_sheet?: Json;
           fetched_at?: string;
         };
         Update: Partial<StockFundamentals>;

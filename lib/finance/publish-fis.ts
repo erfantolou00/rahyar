@@ -12,7 +12,8 @@ import {
   type SalesPoint,
   type StatementFigures,
 } from "@/lib/finance/codal/parse";
-import { assessFis, FIS_PROPOSAL_VERSION, payoutPercent, salesGrowth, valuationBands, type FisFactor, type FisStatus } from "@/lib/finance/fis";
+import { assessFis, FIS_PROPOSAL_VERSION, payoutPercent, salesGrowth, scoreFiscalYear, valuationBands, type FisFactor, type FisStatus } from "@/lib/finance/fis";
+import { applyManualSheet, emptyStatement, parseStoredSheet, sheetHasNumbers, type ManualSheet } from "@/lib/finance/fis-manual";
 import { buildFisObservation } from "@/lib/finance/fis-observe";
 import { loadPortfolio, type FinanceClient } from "@/lib/finance/queries";
 import type { Json, StockFundamentals } from "@/lib/finance/types";
@@ -71,14 +72,10 @@ async function mapPool<T, R>(items: T[], limit: number, run: (item: T) => Promis
   return results;
 }
 
-function fiscalYearScore(period: string | null, older: string[], months: number | null): 0 | 3 | 5 | null {
-  if (!period || months == null) return null;
-  const known = older.filter((item) => /^\d{4}\/\d{2}\/\d{2}$/.test(item));
-  if (known.length === 0) return null;
-  const day = period.slice(5);
-  const changed = known.some((item) => item.slice(5) !== day);
-  if (changed || months < 6) return 0;
-  return months >= 9 ? 5 : 3;
+function annualEndings(current: ParsedStatement | null, older: { period: string; months: number | null }[]): string[] {
+  const endings = older.filter((item) => (item.months ?? 0) >= 12).map((item) => item.period.slice(5));
+  if (current?.period && (current.months ?? 0) >= 12) endings.unshift(current.period.slice(5));
+  return endings;
 }
 
 function optionalNumber(value: number | string | null | undefined): number | null {
@@ -93,7 +90,7 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
   statementSalesGrowth: number | null;
   dividendRatio: number | null;
   salesPoints: SalesPoint[];
-  olderPeriods: string[];
+  olderPeriods: { period: string; months: number | null }[];
   error: string | null;
 }> {
   const dossier = await fetchCodalDossier(symbol);
@@ -132,9 +129,10 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
   const current = parsed.find((item) => item.role === "latest") ?? null;
   const prior = parsed.find((item) => item.role === "prior-interim") ?? null;
   const yoy = parsed.find((item) => item.role === "same-period-last-year") ?? null;
-  const statementSalesGrowth = current && yoy && current.months === yoy.months
+  const pairedGrowth = current && yoy && current.months === yoy.months
     ? salesGrowth(current.figures.sales, yoy.figures.sales)
     : null;
+  const statementSalesGrowth = pairedGrowth ?? salesGrowth(current?.figures.sales ?? null, current?.figures.priorPeriodSales ?? null);
   const salesPoints = await fillMonthlySales(knownSales, dossier.monthly, current?.period ?? null, statementSalesGrowth != null);
   const dividendRatio = await dividendRatioFromLetters(parsed, dossier.dividends);
   return {
@@ -143,9 +141,11 @@ async function readStatements(symbol: string, knownSales: SalesPoint[]): Promise
     statementSalesGrowth,
     dividendRatio,
     salesPoints,
-    olderPeriods: dossier.statements
-      .map((item) => periodFromTitle(item.letter.title))
-      .filter((period): period is string => period != null && period !== current?.period),
+    olderPeriods: dossier.statements.flatMap((item) => {
+      if (item.role === "latest") return [];
+      const period = periodFromTitle(item.letter.title);
+      return period ? [{ period, months: periodMonthsFromTitle(item.letter.title) }] : [];
+    }),
     error: current ? null : shapeError ?? (dossier.statements.length === 0 ? "صورت مالی ن-۱۰ در جستجوی کدال پیدا نشد." : shapeError),
   };
 }
@@ -223,10 +223,17 @@ export async function publishFisReport(
   supabase: FinanceClient,
   akhzaPercent: number,
   inflationPercent: number | null,
-): Promise<{ ok: true; id: string } | { ok: false; code: "save" | "portfolio" }> {
+  options?: { only?: string | null; sheet?: ManualSheet | null; sheetSymbol?: string | null },
+): Promise<{ ok: true; id: string } | { ok: false; code: "save" | "portfolio" | "symbol" }> {
   const portfolio = await loadPortfolio(supabase);
   if (!portfolio.ok) return { ok: false, code: "portfolio" };
-  const stocks = portfolio.data.holdings.filter((holding) => holding.type === "stock" && holding.quantity > 0);
+  const bySymbol = new Map<string, (typeof portfolio.data.holdings)[number]>();
+  for (const holding of portfolio.data.holdings) {
+    if (holding.type === "stock" && holding.quantity > 0 && !bySymbol.has(holding.symbol)) bySymbol.set(holding.symbol, holding);
+  }
+  const wanted = options?.only?.trim();
+  const stocks = wanted ? [...bySymbol.values()].filter((holding) => holding.symbol === wanted) : [...bySymbol.values()];
+  if (wanted && stocks.length === 0) return { ok: false, code: "symbol" };
   const symbols = stocks.map((holding) => holding.symbol);
   const fundamentals = new Map<string, StockFundamentals>();
   if (symbols.length > 0) {
@@ -247,31 +254,45 @@ export async function publishFisReport(
     const fundamental = fundamentals.get(holding.symbol);
     const knownSales = readSalesTrend(fundamental?.sales_trend ?? []);
     const statements = await readStatements(holding.symbol, knownSales);
-    const current = statements.current;
-    const prior = statements.prior;
+    const posted = options?.sheetSymbol === holding.symbol ? options?.sheet ?? null : null;
+    const stored = parseStoredSheet(fundamental?.manual_sheet);
+    const sheet = posted && sheetHasNumbers(posted) ? posted : stored;
+    const manual = sheetHasNumbers(sheet);
+    const figures = applyManualSheet(statements.current?.figures ?? null, sheet);
+    const months = sheet?.months ?? statements.current?.months ?? null;
+    const priorBase = statements.prior?.figures ?? null;
+    const priorFigures = sheet && (sheet.priorSales != null || sheet.priorOperatingProfit != null)
+      ? {
+        ...(priorBase ?? emptyStatement()),
+        sales: sheet.priorSales ?? priorBase?.sales ?? null,
+        operatingProfit: sheet.priorOperatingProfit ?? priorBase?.operatingProfit ?? null,
+      }
+      : priorBase;
+    const priorMonths = sheet?.priorMonths ?? statements.prior?.months ?? null;
     const sameYear = Boolean(
-      current?.period
-      && prior?.period
-      && current.period.slice(0, 4) === prior.period.slice(0, 4),
+      (statements.current?.period && statements.prior?.period && statements.current.period.slice(0, 4) === statements.prior.period.slice(0, 4))
+      || (sheet?.priorMonths != null && months != null && priorMonths != null && months > priorMonths),
     );
+    const manualGrowth = sheet?.priorPeriodSales != null ? salesGrowth(figures?.sales ?? null, sheet.priorPeriodSales) : null;
     const observation = buildFisObservation({
-      price: holding.price,
-      months: current?.months ?? null,
-      current: current?.figures ?? null,
-      prior: prior?.figures ?? null,
-      priorMonths: prior?.months ?? null,
+      price: sheet?.price ?? holding.price,
+      months,
+      current: figures,
+      prior: priorFigures,
+      priorMonths,
       sameFiscalYear: sameYear,
       salesPoints: statements.salesPoints,
-      period: current?.period ?? null,
-      fiscalYearScore: fiscalYearScore(current?.period ?? null, statements.olderPeriods, current?.months ?? null),
-      ttmEps: optionalNumber(fundamental?.eps),
+      period: statements.current?.period ?? null,
+      fiscalYearScore: sheet?.fiscalYearScore ?? scoreFiscalYear(months, annualEndings(statements.current, statements.olderPeriods)),
+      ttmEps: sheet?.ttmEps ?? optionalNumber(fundamental?.eps),
       owned: true,
       previousScore: priorScores.get(holding.symbol) ?? null,
-      statementSalesGrowthPercent: statements.statementSalesGrowth,
-      dividendRatioPercent: statements.dividendRatio,
+      statementSalesGrowthPercent: manualGrowth ?? statements.statementSalesGrowth,
+      dividendRatioPercent: sheet?.dividendRatioPercent ?? statements.dividendRatio,
     });
-    if (statements.error) observation.gaps.unshift(statements.error);
-    if (!current) observation.gaps.unshift("صورت مالی قابل‌خواندن از کدال پیدا نشد.");
+    if (manual) observation.gaps.unshift("عددهایی که در فرم پر شده، به‌جای کدال نشسته‌اند.");
+    if (statements.error && !figures) observation.gaps.unshift(statements.error);
+    if (!figures) observation.gaps.unshift("صورت مالی قابل‌خواندن از کدال پیدا نشد.");
     const result = assessFis(observation, akhzaPercent, inflationPercent);
     return {
       fallback: result.inflationFallback,

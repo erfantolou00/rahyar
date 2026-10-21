@@ -1,5 +1,6 @@
-import { Panel } from "@/components/chrome";
+import { ChevronDown } from "lucide-react";
 import { formatNumber } from "@/lib/finance/format";
+import type { FisFactor } from "@/lib/finance/fis";
 import type { FisReportContent } from "@/lib/finance/publish-fis";
 
 function shown(value: number | null, digits = 2): string {
@@ -7,65 +8,77 @@ function shown(value: number | null, digits = 2): string {
 }
 
 export function FisReportView({ content }: { content: FisReportContent }) {
+  const inflation = content.inflation_percent == null
+    ? "تورم وارد نشده و ۴۰ درصد نشسته است."
+    : `تورم ${formatNumber(content.inflation_percent, 2)} درصد.`;
+
   return (
-    <div className="grid gap-4">
-      <Panel title="محدوده همین گزارش">
-        <p className="text-sm leading-7 text-muted-foreground">
-          نرخ اخزا <span className="numeric">{formatNumber(content.akhza_percent, 2)}</span>
-          {" درصد. "}
-          خرید تا نسبت <span className="numeric">{shown(content.buy_pe)}</span>
-          {" و خروج از نسبت "}
-          <span className="numeric">{shown(content.exit_pe)}</span>
-          {". "}
-          {content.inflation_percent == null
-            ? "تورم دوازده‌ماهه وارد نشده و برای رشد فروش ۴۰ درصد نشسته است."
-            : `تورم دوازده‌ماهه ${formatNumber(content.inflation_percent, 2)} درصد است.`}
-          {" این گزارش فقط پیشنهاد است و معامله‌ای ثبت نمی‌کند."}
-        </p>
-      </Panel>
+    <div className="grid gap-2">
+      <p className="text-sm leading-6 text-muted-foreground">
+        اخزا <span className="numeric">{formatNumber(content.akhza_percent, 2)}</span>
+        {" درصد. خرید تا "}
+        <span className="numeric">{shown(content.buy_pe)}</span>
+        {" و خروج از "}
+        <span className="numeric">{shown(content.exit_pe)}</span>
+        {". "}
+        {inflation}
+        {" پیشنهاد است و معامله ثبت نمی‌کند."}
+      </p>
       {content.stocks.length === 0 ? (
-        <Panel>
-          <p className="text-sm leading-7">سهمی با مانده در سبد نیست.</p>
-        </Panel>
+        <p className="text-sm leading-6">سهمی با مانده در سبد نیست.</p>
       ) : (
         content.stocks.map((stock) => (
-          <Panel key={stock.symbol} title={`${stock.symbol} · ${stock.label}`}>
-            <p className="mb-3 text-sm leading-7">{stock.score == null ? stock.reason : `امتیاز ${formatNumber(stock.score, 0)} از ۱۰۰. ${stock.reason}`}</p>
-            <p className="mb-3 text-sm text-muted-foreground">
-              نسبت آینده‌نگر <span className="numeric">{shown(stock.forward_pe)}</span>
-              {stock.previous_score == null ? "" : ` · امتیاز گزارش قبل ${formatNumber(stock.previous_score, 0)}`}
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[36rem] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="px-2 py-2 text-start font-medium">عامل</th>
-                    <th className="px-2 py-2 text-start font-medium">مقدار</th>
-                    <th className="px-2 py-2 text-start font-medium">امتیاز</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stock.factors.map((factor) => (
-                    <tr key={factor.key} className="border-b border-border/70">
-                      <td className="px-2 py-2">
-                        {factor.label}
-                        {factor.note ? <span className="mt-1 block text-xs leading-6 text-muted-foreground">{factor.note}</span> : null}
-                      </td>
-                      <td className="numeric px-2 py-2">{shown(factor.value)}</td>
-                      <td className="numeric px-2 py-2">{formatNumber(factor.score, 0)} از {formatNumber(factor.max, 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <details key={stock.symbol} {...(content.stocks.length === 1 ? { open: true } : {})} className="surface group">
+            <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+              <span className="font-medium">{stock.symbol}</span>
+              <span className="text-muted-foreground">{stock.label}</span>
+              <span className="numeric ms-auto">{stock.score == null ? "—" : formatNumber(stock.score, 0)}</span>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="border-t border-border px-3 py-2">
+              <p className="text-sm leading-6">
+                {stock.score == null ? stock.reason : `امتیاز ${formatNumber(stock.score, 0)} از ۱۰۰. ${stock.reason}`}
+                {" "}
+                <span className="text-muted-foreground">
+                  نسبت آینده‌نگر <span className="numeric">{shown(stock.forward_pe)}</span>
+                  {stock.previous_score == null ? "" : ` · قبل ${formatNumber(stock.previous_score, 0)}`}
+                </span>
+              </p>
+              <div className="mt-2 grid gap-x-4 sm:grid-cols-2">
+                {stock.factors.map((factor) => (
+                  <FactorRow key={factor.key} factor={factor} />
+                ))}
+              </div>
+              <Notes stock={stock} />
             </div>
-            {stock.gaps.length > 0 ? (
-              <ul className="mt-3 grid gap-1 text-sm leading-7 text-muted-foreground">
-                {stock.gaps.map((gap) => <li key={gap}>{gap}</li>)}
-              </ul>
-            ) : null}
-          </Panel>
+          </details>
         ))
       )}
     </div>
+  );
+}
+
+function FactorRow({ factor }: { factor: FisFactor }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-border/60 py-1 text-xs">
+      <span className="min-w-0">{factor.label}</span>
+      <span className="numeric shrink-0 text-muted-foreground">
+        {shown(factor.value)} · {formatNumber(factor.score, 0)}/{formatNumber(factor.max, 0)}
+      </span>
+    </div>
+  );
+}
+
+function Notes({ stock }: { stock: FisReportContent["stocks"][number] }) {
+  const notes = stock.factors.filter((factor) => factor.note);
+  if (notes.length === 0 && stock.gaps.length === 0) return null;
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer text-xs text-muted-foreground">توضیح ردیف‌های ناقص</summary>
+      <ul className="mt-1 grid gap-1 text-xs leading-5 text-muted-foreground">
+        {notes.map((factor) => <li key={factor.key}>{factor.label}: {factor.note}</li>)}
+        {stock.gaps.map((gap) => <li key={gap}>{gap}</li>)}
+      </ul>
+    </details>
   );
 }

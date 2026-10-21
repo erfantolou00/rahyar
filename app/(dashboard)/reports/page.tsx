@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage, quietControlClass } from "@/components/chrome";
-import { captureReport, createFisReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
+import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage, quietControlClass } from "@/components/chrome";
+import { FisManualForm } from "@/components/fis-manual-form";
+import { captureReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
+import { parseStoredSheet, type ManualSheet } from "@/lib/finance/fis-manual";
 import { parseFisContent } from "@/lib/finance/publish-fis";
 import { formatMoney, formatNumber, formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
-import { readRows } from "@/lib/finance/queries";
+import { loadPortfolio, loadStockFundamentals, readRows } from "@/lib/finance/queries";
 import type { Report } from "@/lib/finance/types";
 import { formatWeekChange, parseWeeklyContent } from "@/lib/finance/weekly";
 import { createClient } from "@/lib/supabase/server";
@@ -20,9 +22,25 @@ export default async function ReportsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const reports = await readRows<Report>(
-    supabase.from("reports").select("*").order("created_at", { ascending: false }),
-  );
+  const [reports, portfolio, fundamentals] = await Promise.all([
+    readRows<Report>(supabase.from("reports").select("*").order("created_at", { ascending: false })),
+    loadPortfolio(supabase),
+    loadStockFundamentals(supabase),
+  ]);
+  const stocks = portfolio.ok
+    ? [...new Map(
+      portfolio.data.holdings
+        .filter((holding) => holding.type === "stock" && holding.quantity > 0)
+        .map((holding) => [holding.symbol, { symbol: holding.symbol, price: holding.price }]),
+    ).values()]
+    : [];
+  const sheets: Record<string, ManualSheet> = {};
+  if (fundamentals.ok) {
+    for (const row of fundamentals.data) {
+      const sheet = parseStoredSheet(row.manual_sheet);
+      if (sheet) sheets[row.symbol] = sheet;
+    }
+  }
 
   return (
     <div>
@@ -46,15 +64,7 @@ export default async function ReportsPage({
             </form>
           </div>
           <Panel title="گزارش بنیادی سهام">
-            <form action={createFisReport} className="grid gap-3 sm:grid-cols-[12rem_12rem_auto] sm:items-end">
-              <Field label="نرخ اخزا (درصد)">
-                <input name="akhza" required inputMode="decimal" dir="ltr" placeholder="۴۰" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
-              </Field>
-              <Field label="تورم دوازده‌ماهه (درصد)">
-                <input name="inflation" inputMode="decimal" dir="ltr" placeholder="اختیاری" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
-              </Field>
-              <SubmitButton>ساخت گزارش FIS</SubmitButton>
-            </form>
+            <FisManualForm stocks={stocks} sheets={sheets} />
           </Panel>
           {reports.data.length === 0 ? (
             <Panel>

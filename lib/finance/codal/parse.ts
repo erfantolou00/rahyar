@@ -37,6 +37,7 @@ export type StatementFigures = {
   priorInventory: number | null;
   cogs: number | null;
   retainedEarnings: number | null;
+  priorPeriodSales: number | null;
 };
 
 export type FundamentalsNumbers = {
@@ -475,16 +476,57 @@ function tableHas(rows: string[][], accept: (label: string) => boolean): boolean
   return rows.some((row) => rowLabels(row).some((hit) => accept(hit.label)));
 }
 
+function labeledAmount(
+  rows: string[][],
+  accept: (label: string) => boolean,
+  note: number | null,
+  preferred: string[] = [],
+): number | null {
+  const hits = rows.flatMap(rowLabels).filter((hit) => accept(hit.label));
+  const ordered = [
+    ...preferred.flatMap((name) => hits.filter((hit) => hit.label === name)),
+    ...hits.filter((hit) => !preferred.includes(hit.label)),
+  ];
+  const seen = new Set<LabelHit>();
+  for (const hit of ordered) {
+    if (seen.has(hit)) continue;
+    seen.add(hit);
+    const value = amountsAfter(hit.row, hit.index, note)[0];
+    if (value != null) return value;
+  }
+  return null;
+}
+
+function priorPeriodSales(rows: string[][], salesRow: string[] | null): number | null {
+  if (!salesRow) return null;
+  const columns = new Map<number, string>();
+  for (const row of rows.slice(0, 4)) {
+    row.forEach((cell, index) => {
+      if (columns.has(index)) return;
+      const period = periodFromTitle(cell);
+      if (period) columns.set(index, period);
+    });
+  }
+  const ordered = [...columns.entries()].sort((left, right) => left[0] - right[0]);
+  const current = ordered[0]?.[1];
+  if (!current) return null;
+  const previous = shiftPeriodYear(current, -1);
+  const column = ordered.find(([, period]) => period === previous)?.[0];
+  if (column == null) return null;
+  const value = parseCodalNumber(salesRow[column] ?? "");
+  return value != null && value > 0 ? value : null;
+}
+
 export function parseStatementHtml(html: string): StatementFigures {
   const tables = statementTables(html);
-  const income = lastMatching(tables, (rows) => tableHas(rows, isNetLabel));
+  const income = lastMatching(tables, (rows) => tableHas(rows, isNetLabel) && tableHas(rows, isSalesLabel))
+    ?? lastMatching(tables, (rows) => tableHas(rows, isNetLabel));
   if (!income) throw new CodalShapeError(STATEMENT_SHAPE);
   const balance = lastMatching(tables, (rows) => tableHas(rows, (label) => isAssetLabel(label) || isEquityLabel(label))) ?? income;
   const incomeNote = noteColumn(income);
   const balanceNote = noteColumn(balance);
   const salesHit = findHit(income, isSalesLabel, ["درآمدهایعملیاتی", "جمعدرآمدهایعملیاتی", "درآمدعملیاتی", "جمعدرآمدها", "فروشخالص", "فروش"]);
-  const netHit = findHit(income, isNetLabel, ["سودزیانخالص", "سودخالص"]);
-  const netIncome = netHit ? amountsAfter(netHit.row, netHit.index, incomeNote)[0] ?? null : null;
+  const netIncome = labeledAmount(income, isNetLabel, incomeNote, ["سودزیانخالص", "سودخالص"]);
   if (netIncome == null) throw new CodalShapeError(STATEMENT_SHAPE);
 
   const amount = (hit: LabelHit | null, note: number | null, place: number) =>
@@ -492,12 +534,15 @@ export function parseStatementHtml(html: string): StatementFigures {
   const incomeHit = (accept: (label: string) => boolean, preferred: string[] = []) => findHit(income, accept, preferred);
   const balanceHit = (accept: (label: string) => boolean, preferred: string[] = []) => findHit(balance, accept, preferred);
   const inventory = balanceHit((label) => label.includes("موجودیموادوکالا") || label === "موجودیکالا");
+  const epsHits = income.flatMap(rowLabels).filter((hit) => hit.label.includes("هرسهم") && (hit.label.includes("خالص") || hit.label.includes("پایه")));
 
   return {
     sales: amount(salesHit, incomeNote, 0),
+    priorPeriodSales: priorPeriodSales(income, salesHit?.row ?? null),
     netIncome,
     equity: amount(balanceHit(isEquityLabel, ["جمعحقوقمالکانه", "جمعحقوقصاحبانسهام"]), balanceNote, 0),
-    periodEps: amount(incomeHit((label) => label.includes("هرسهم") && (label.includes("خالص") || label.includes("پایه"))), incomeNote, 0),
+    periodEps: firstPresent(epsHits.filter((hit) => hit.label.includes("خالص")), incomeNote)
+      ?? firstPresent(epsHits, incomeNote),
     operatingProfit: amount(incomeHit(isOperatingLabel), incomeNote, 0),
     otherOperatingIncome: amount(incomeHit((label) => label.includes("سایردرآمد") && !label.includes("غیرعملیاتی") && !label.includes("هزینه")), incomeNote, 0),
     totalAssets: amount(balanceHit(isAssetLabel, ["جمعداراییها"]), balanceNote, 0),
@@ -507,6 +552,14 @@ export function parseStatementHtml(html: string): StatementFigures {
     cogs: amount(incomeHit((label) => label.includes("بهایتمامشده")), incomeNote, 0),
     retainedEarnings: amount(balanceHit((label) => label === "سودانباشته" || label.startsWith("سودزیانانباشته")), balanceNote, 0),
   };
+}
+
+function firstPresent(hits: LabelHit[], note: number | null): number | null {
+  for (const hit of hits) {
+    const value = amountsAfter(hit.row, hit.index, note)[0];
+    if (value != null) return value;
+  }
+  return null;
 }
 
 function largestAmount(cells: string[]): number | null {
