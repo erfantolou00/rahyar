@@ -8,8 +8,12 @@ import {
   mergeSalesTrend,
   parseCodalNumber,
   parseCodalSearch,
+  parseCodalSearchXml,
+  parseDividendPerShare,
   parseMonthlySalesHtml,
   parseStatementHtml,
+  preferMonthlyDownloads,
+  selectFisStatementLetters,
   selectMonthlyLetters,
   selectStatementLetter,
   type CodalLetter,
@@ -19,11 +23,17 @@ const statementHtml = `
 <table>
   <tr><td>درآمدهاي عملياتي</td><td>۸۳۴</td><td>۱۰۰</td></tr>
   <tr><td>بهاى تمام شده درآمدهاي عملياتي</td><td>(۶۰۱)</td></tr>
+  <tr><td>سود (زیان) عملیاتی</td><td>۱۸۰</td></tr>
+  <tr><td>سایر درآمدهای عملیاتی</td><td>۲۰</td></tr>
   <tr><td>سود(زيان) خالص</td><td>۱۲۰</td><td>۲۰۰</td></tr>
   <tr><td>سود(زيان) خالص عمليات در حال تداوم</td><td>۹۹۹</td></tr>
   <tr><td>سود (زيان) خالص هر سهم – ريال</td><td>۶۲</td></tr>
   <tr><td>جمع حقوق مالکانه</td><td>۳,۳۸۲</td></tr>
   <tr><td>جمع حقوق مالکانه و بدهي‌ها</td><td>۹,۹۹۹</td></tr>
+  <tr><td>جمع دارایی‌ها</td><td>۵,۰۰۰</td></tr>
+  <tr><td>دریافتنی‌های تجاری</td><td>۴۰۰</td></tr>
+  <tr><td>موجودی مواد و کالا</td><td>۹۰</td><td>۷۰</td></tr>
+  <tr><td>سود انباشته</td><td>۳۰۰</td></tr>
 </table>`;
 
 const monthlyHtml = `
@@ -87,12 +97,61 @@ describe("Codal statement and monthly parsers", () => {
       netIncome: 120,
       equity: 3382,
       periodEps: 62,
+      operatingProfit: 180,
+      otherOperatingIncome: 20,
+      totalAssets: 5000,
+      receivables: 400,
+      inventory: 90,
+      priorInventory: 70,
+      cogs: -601,
+      retainedEarnings: 300,
     });
     expect(parseCodalNumber("(۶۰۱,۵۰۸)")).toBe(-601508);
   });
 
   it("throws when the statement labels are gone", () => {
     expect(() => parseStatementHtml("<table><tr><td>نام</td><td>۱</td></tr></table>")).toThrow(CodalShapeError);
+  });
+
+  it("skips the note column and reads the label wherever it sits in the row", () => {
+    const html = `
+      <table>
+        <tr><td>شرح</td><td>یادداشت</td><td>دوره جاری</td><td>دوره قبل</td></tr>
+        <tr><td>درآمدهای عملیاتی</td><td>۵</td><td>۸۳۴</td><td>۱۰۰</td></tr>
+        <tr><td>ستون دیگر</td><td>سود خالص</td><td>۱۲۰</td><td>۹۰</td></tr>
+      </table>`;
+    const figures = parseStatementHtml(html);
+    expect(figures.sales).toBe(834);
+    expect(figures.netIncome).toBe(120);
+  });
+
+  it("reads an investment statement that has no operating-revenue line", () => {
+    const html = `
+      <table>
+        <tr><td>جمع درآمدها</td><td>۵۰۰</td></tr>
+        <tr><td>سود (زیان) خالص عملیات در حال تداوم</td><td>۷۰</td></tr>
+        <tr><td>سود خالص</td><td>۸۰</td></tr>
+        <tr><td>جمع حقوق صاحبان سهام</td><td>۹۰۰</td></tr>
+      </table>`;
+    const figures = parseStatementHtml(html);
+    expect(figures.sales).toBe(500);
+    expect(figures.netIncome).toBe(80);
+    expect(figures.equity).toBe(900);
+  });
+
+  it("uses the separate statement when the consolidated one comes first", () => {
+    const html = `
+      <table>
+        <tr><td>درآمدهای عملیاتی</td><td>۹۹۹۹</td></tr>
+        <tr><td>سود (زیان) خالص</td><td>۸۸۸</td></tr>
+      </table>
+      <table>
+        <tr><td>درآمدهای عملیاتی</td><td>۸۳۴</td></tr>
+        <tr><td>سود (زیان) خالص</td><td>۱۲۰</td></tr>
+      </table>`;
+    const figures = parseStatementHtml(html);
+    expect(figures.sales).toBe(834);
+    expect(figures.netIncome).toBe(120);
   });
 
   it("reads the monthly sales column and the period in the header", () => {
@@ -133,7 +192,7 @@ describe("Codal letter selection", () => {
     }),
   ];
 
-  it("keeps the issuer statement and the corrected monthly letter", () => {
+  it("keeps the issuer statement, the prior periods, and the corrected monthly letter", () => {
     expect(selectStatementLetter(letters)?.tracingNo).toBe(8);
     expect(selectMonthlyLetters(letters).map((item) => item.tracingNo)).toEqual([9]);
     expect(isEarningsRevision(letters[4] ?? letters[0])).toBe(false);
@@ -146,6 +205,49 @@ describe("Codal letter selection", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  it("chooses the latest statement, the prior interim, last year, and two annuals", () => {
+    const chosen = selectFisStatementLetters([
+      letter({ tracingNo: 1, letterCode: "ن-۱۰", title: "صورت‌های مالی سال مالی منتهی به ۱۴۰۳/۱۲/۲۹ (حسابرسی شده)" }),
+      letter({ tracingNo: 2, letterCode: "ن-۱۰", title: "صورت‌های مالی سال مالی منتهی به ۱۴۰۴/۱۲/۲۹ (حسابرسی شده)" }),
+      letter({ tracingNo: 3, letterCode: "ن-۱۰", title: "اطلاعات و صورت‌های مالی میاندوره‌ای دوره ۳ ماهه منتهی به ۱۴۰۵/۰۳/۳۱ (حسابرسی نشده)" }),
+      letter({ tracingNo: 4, letterCode: "ن-۱۰", title: "اطلاعات و صورت‌های مالی میاندوره‌ای دوره ۶ ماهه منتهی به ۱۴۰۵/۰۶/۳۱ (حسابرسی نشده)" }),
+      letter({ tracingNo: 6, letterCode: "ن-۱۰", title: "اطلاعات و صورت‌های مالی میاندوره‌ای دوره ۶ ماهه منتهی به ۱۴۰۵/۰۶/۳۱ (حسابرسی نشده)(اصلاحیه)" }),
+      letter({ tracingNo: 5, letterCode: "ن-۱۰", title: "اطلاعات و صورت‌های مالی میاندوره‌ای دوره ۶ ماهه منتهی به ۱۴۰۴/۰۶/۳۱ (حسابرسی نشده)" }),
+      letter({ tracingNo: 7, letterCode: "ن-۱۰", title: "صورت‌های مالی سال مالی منتهی به ۱۴۰۴/۱۲/۲۹ (شرکت فرعی)" }),
+    ]);
+    expect(chosen.map((item) => [item.role, item.letter.tracingNo])).toEqual([
+      ["latest", 6],
+      ["prior-interim", 3],
+      ["same-period-last-year", 5],
+      ["annual", 2],
+      ["prior-annual", 1],
+    ]);
+  });
+
+  it("reads a dividend per share and an XML letter list", () => {
+    const html = `<table><tr><td>سود نقدی هر سهم</td><td>۲۴۰</td></tr></table>`;
+    expect(parseDividendPerShare(html)).toBe(240);
+    const letters = parseCodalSearchXml(`
+      <Letters><CodalLetterHeaderDto>
+        <TracingNo>1605314</TracingNo><Symbol>فولاد</Symbol>
+        <Title>گزارش فعالیت ماهانه دوره ۱ ماهه منتهی به ۱۴۰۵/۰۶/۳۱</Title>
+        <LetterCode>ن-۳۰</LetterCode><PublishDateTime>۱۴۰۵/۰۷/۰۷</PublishDateTime>
+        <ExcelUrl>https://excel.codal.ir/service/Excel/GetAll/abc/0</ExcelUrl>
+        <Url>/Reports/Decision.aspx?LetterSerial=abc</Url>
+      </CodalLetterHeaderDto></Letters>`);
+    expect(letters[0]?.tracingNo).toBe(1605314);
+    expect(letters[0]?.letterCode).toBe("ن-۳۰");
+  });
+
+  it("downloads the newest month and the same month last year before older gaps", () => {
+    const monthly = [
+      letter({ tracingNo: 1, letterCode: "ن-۳۰", title: "گزارش فعالیت ماهانه دوره ۱ ماهه منتهی به ۱۴۰۴/۰۶/۳۱" }),
+      letter({ tracingNo: 2, letterCode: "ن-۳۰", title: "گزارش فعالیت ماهانه دوره ۱ ماهه منتهی به ۱۴۰۵/۰۵/۳۱" }),
+      letter({ tracingNo: 3, letterCode: "ن-۳۰", title: "گزارش فعالیت ماهانه دوره ۱ ماهه منتهی به ۱۴۰۵/۰۶/۳۱" }),
+    ];
+    expect(preferMonthlyDownloads(monthly, ["1405/06/31"], 2).map((item) => item.tracingNo)).toEqual([1, 2]);
   });
 });
 

@@ -2,7 +2,7 @@ import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
 import type { FinanceClient, LoadResult } from "@/lib/finance/queries";
 import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
 import { fetchListedQuote } from "@/lib/finance/prices/listed";
-import { fetchCodalLetters, fetchCodalReport } from "@/lib/finance/codal/fetch";
+import { fetchCodalDossier, fetchCodalReport } from "@/lib/finance/codal/fetch";
 import {
   CodalShapeError,
   assembleFundamentals,
@@ -12,16 +12,16 @@ import {
   parseMonthlySalesHtml,
   parseStatementHtml,
   periodMonthsFromTitle,
+  preferMonthlyDownloads,
   readSalesTrend,
-  selectMonthlyLetters,
-  selectStatementLetter,
+  type CodalLetter,
   type SalesPoint,
 } from "@/lib/finance/codal/parse";
 import type { Numeric, StockFundamentals } from "@/lib/finance/types";
 
 const FRESH_OK_MS = 6 * 60 * 60 * 1000;
 const FRESH_ERROR_MS = 60 * 60 * 1000;
-const MONTHLY_LIMIT = 4;
+const MONTHLY_DOWNLOADS = 6;
 const LIST_FAILURE = "فهرست گزارش‌های کدال خوانده نشد. اگر ساختار سایت عوض شده باشد، پارس بعدی باید به‌روز شود.";
 
 export const CODAL_NOTICE_KIND = "codal_notice" as const;
@@ -63,7 +63,7 @@ function clip(value: string, max: number): string {
   return trimmed.length <= max ? trimmed : trimmed.slice(0, max);
 }
 
-async function readStatement(letter: Awaited<ReturnType<typeof selectStatementLetter>>): Promise<{
+async function readStatement(letter: CodalLetter | null): Promise<{
   figures: { sales: number | null; netIncome: number | null; equity: number | null; periodEps: number | null };
   notes: string[];
   source: string | null;
@@ -131,15 +131,18 @@ export async function syncSymbolFundamentals(
   const previousTrend = previous ? readSalesTrend(previous.sales_trend) : [];
   const previousEps = previous ? numericOrNull(previous.eps) : null;
 
-  const loaded = await fetchCodalLetters(symbol);
+  const dossier = await fetchCodalDossier(symbol);
   const shapeNotes: string[] = [];
-  let source = loaded?.source ?? "codal";
-  const letters = loaded?.letters ?? [];
-  if (!loaded) shapeNotes.push(LIST_FAILURE);
+  let source = dossier?.source ?? "codal";
+  if (!dossier) shapeNotes.push(LIST_FAILURE);
 
-  const newest = letters.slice().sort((left, right) => right.tracingNo - left.tracingNo)[0] ?? null;
-  const statementLetter = selectStatementLetter(letters);
-  const monthlyLetters = selectMonthlyLetters(letters, MONTHLY_LIMIT);
+  const newest = dossier?.newest ?? null;
+  const statementLetter = dossier?.statements.find((item) => item.role === "latest")?.letter ?? null;
+  const monthlyLetters = preferMonthlyDownloads(
+    dossier?.monthly ?? [],
+    previousTrend.map((point) => point.period),
+    MONTHLY_DOWNLOADS,
+  );
 
   const months = statementLetter ? periodMonthsFromTitle(statementLetter.title) : null;
   const [statementOutcome, monthlyOutcome, quote] = await Promise.all([

@@ -25,10 +25,18 @@ export type SalesPoint = {
 };
 
 export type StatementFigures = {
-  sales: number;
+  sales: number | null;
   netIncome: number;
   equity: number | null;
   periodEps: number | null;
+  operatingProfit: number | null;
+  otherOperatingIncome: number | null;
+  totalAssets: number | null;
+  receivables: number | null;
+  inventory: number | null;
+  priorInventory: number | null;
+  cogs: number | null;
+  retainedEarnings: number | null;
 };
 
 export type FundamentalsNumbers = {
@@ -59,6 +67,7 @@ export function foldLabel(value: string): string {
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
     .replace(/ي/g, "ی")
+    .replace(/ى/g, "ی")
     .replace(/ك/g, "ک")
     .replace(/ة/g, "ه")
     .replace(/[\s\u200c\u00a0_\-–—:：,،.()（）]/g, "")
@@ -146,6 +155,166 @@ export function selectStatementLetter(letters: CodalLetter[]): CodalLetter | nul
   );
 }
 
+export type FisStatementRole = "latest" | "prior-interim" | "same-period-last-year" | "annual" | "prior-annual";
+
+export type ChosenStatement = { letter: CodalLetter; role: FisStatementRole };
+
+function shiftPeriodYear(period: string, years: number): string | null {
+  const match = /^(\d{4})\/(\d{2}\/\d{2})$/.exec(period);
+  if (!match) return null;
+  return `${Number(match[1]) + years}/${match[2]}`;
+}
+
+function statementsByPeriod(letters: CodalLetter[]): CodalLetter[] {
+  const sorted = letters.filter(isFinancialStatement).sort((left, right) => right.tracingNo - left.tracingNo);
+  const byPeriod = new Map<string, CodalLetter>();
+  for (const letter of sorted) {
+    const period = periodFromTitle(letter.title) ?? `tracing:${letter.tracingNo}`;
+    if (!byPeriod.has(period)) byPeriod.set(period, letter);
+  }
+  return [...byPeriod.values()].sort((left, right) => (periodFromTitle(right.title) ?? "").localeCompare(periodFromTitle(left.title) ?? ""));
+}
+
+export function selectFisStatementLetters(letters: CodalLetter[]): ChosenStatement[] {
+  const statements = statementsByPeriod(letters);
+  const latest = statements[0];
+  if (!latest) return [];
+  const latestPeriod = periodFromTitle(latest.title);
+  const latestMonths = periodMonthsFromTitle(latest.title);
+  const year = latestPeriod?.slice(0, 4) ?? null;
+  const priorInterim = year == null || latestMonths == null
+    ? null
+    : statements.find((letter) => {
+      const period = periodFromTitle(letter.title);
+      const months = periodMonthsFromTitle(letter.title);
+      return period?.startsWith(`${year}/`) && months != null && months < latestMonths;
+    }) ?? null;
+  const sameLastYear = latestPeriod == null
+    ? null
+    : statements.find((letter) => periodFromTitle(letter.title) === shiftPeriodYear(latestPeriod, -1)) ?? null;
+  const annuals = statements.filter((letter) => periodMonthsFromTitle(letter.title) === 12);
+  const picked: ChosenStatement[] = [];
+  const add = (letter: CodalLetter | null, role: FisStatementRole) => {
+    if (!letter || picked.some((item) => item.letter.tracingNo === letter.tracingNo)) return;
+    picked.push({ letter, role });
+  };
+  add(latest, "latest");
+  add(priorInterim, "prior-interim");
+  add(sameLastYear, "same-period-last-year");
+  add(annuals[0] ?? null, "annual");
+  add(annuals[1] ?? null, "prior-annual");
+  return picked.slice(0, 5);
+}
+
+export function isDividendLetter(letter: Pick<CodalLetter, "letterCode" | "title">): boolean {
+  if (letter.title.includes("شرکت")) return false;
+  const code = foldLabel(letter.letterCode);
+  if (code === "ن52" || code === "ن51" || code === "ن13") return true;
+  const title = foldLabel(letter.title);
+  return title.includes("زمانبندیپرداختسود")
+    || title.includes("تصمیماتمجمععمومیعاديسالیانه")
+    || title.includes("خلاصهتصمیماتمجمععمومیعاديسالیانه");
+}
+
+export function selectDividendLetters(letters: CodalLetter[], limit = 2): CodalLetter[] {
+  const picked: CodalLetter[] = [];
+  const years = new Set<string>();
+  const sorted = letters.filter(isDividendLetter).sort((left, right) => right.tracingNo - left.tracingNo);
+  for (const letter of sorted) {
+    const period = periodFromTitle(letter.title);
+    const year = period?.slice(0, 4) ?? `tracing:${letter.tracingNo}`;
+    if (years.has(year)) continue;
+    years.add(year);
+    picked.push(letter);
+    if (picked.length >= limit) break;
+  }
+  return picked;
+}
+
+export function preferMonthlyDownloads(letters: CodalLetter[], havePeriods: string[], limit: number): CodalLetter[] {
+  const have = new Set(havePeriods);
+  const selected = selectMonthlyLetters(letters, 18).filter((letter) => {
+    const period = periodFromTitle(letter.title);
+    return period != null && !have.has(period);
+  });
+  const newestPeriod = periodFromTitle(selectMonthlyLetters(letters, 1)[0]?.title ?? "");
+  const yearAgo = newestPeriod ? shiftPeriodYear(newestPeriod, -1) : null;
+  const rank = (letter: CodalLetter) => {
+    const period = periodFromTitle(letter.title);
+    if (period != null && period === newestPeriod) return 0;
+    if (period != null && period === yearAgo) return 1;
+    return 2;
+  };
+  return selected
+    .sort((left, right) => rank(left) - rank(right) || (periodFromTitle(right.title) ?? "").localeCompare(periodFromTitle(left.title) ?? ""))
+    .slice(0, limit);
+}
+
+export function parseDividendPerShare(html: string): number | null {
+  const rows = statementTables(html).flat();
+  for (const row of rows) {
+    for (let index = 0; index < row.length; index += 1) {
+      const label = foldLabel(row[index] ?? "");
+      if (!label.includes("سودنقدیهرسهم") && !label.includes("سودهرسهمنقدی")) continue;
+      const inline = firstNumberInText(row[index] ?? "");
+      if (inline != null && inline > 0) return inline;
+      const next = parseCodalNumber(row[index + 1] ?? "");
+      if (next != null && next > 0) return next;
+    }
+  }
+  return null;
+}
+
+function firstNumberInText(value: string): number | null {
+  const match = /[۰-۹0-9][۰-۹0-9,،.]*/.exec(value);
+  if (!match) return null;
+  return parseCodalNumber(match[0]);
+}
+
+export function parseCodalSearchXml(xml: string): CodalLetter[] {
+  const blocks = [...xml.matchAll(/<CodalLetterHeaderDto\b[^>]*>([\s\S]*?)<\/CodalLetterHeaderDto>/gi)];
+  if (blocks.length === 0 && !/<Letters\b/i.test(xml)) {
+    throw new CodalShapeError(LIST_SHAPE);
+  }
+  return blocks.map((block, index) => {
+    const body = block[1] ?? "";
+    const tracingNo = Number(xmlTag(body, "TracingNo"));
+    const symbol = decodeXml(xmlTag(body, "Symbol"));
+    const title = decodeXml(xmlTag(body, "Title"));
+    if (!Number.isInteger(tracingNo) || tracingNo <= 0 || !symbol || !title) {
+      throw new CodalShapeError(`${LETTER_SHAPE} (${index + 1})`);
+    }
+    const excelUrl = decodeXml(xmlTag(body, "ExcelUrl"));
+    const htmlPath = decodeXml(xmlTag(body, "Url"));
+    return {
+      tracingNo,
+      symbol,
+      title,
+      letterCode: decodeXml(xmlTag(body, "LetterCode")),
+      publishedLabel: decodeXml(xmlTag(body, "PublishDateTime")),
+      excelUrl: excelUrl || null,
+      htmlPath: htmlPath || null,
+    };
+  });
+}
+
+function xmlTag(body: string, tag: string): string {
+  const match = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(body);
+  return match?.[1]?.trim() ?? "";
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, digits: string) => codePoint(Number(digits)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, digits: string) => codePoint(Number.parseInt(digits, 16)))
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .trim();
+}
+
 export function selectMonthlyLetters(letters: CodalLetter[], limit = 4): CodalLetter[] {
   const sorted = letters.filter(isMonthlyActivity).sort((left, right) => right.tracingNo - left.tracingNo);
   const byPeriod = new Map<string, CodalLetter>();
@@ -196,58 +365,147 @@ function htmlTables(html: string): string[] {
 function tableRows(html: string): string[][] {
   const rows: string[][] = [];
   for (const match of html.matchAll(/<tr\b[\s\S]*?<\/tr>/gi)) {
-    const cells = [...match[0].matchAll(/<t[dh]\b[\s\S]*?<\/t[dh]>/gi)].map((cell) =>
-      cell[0]
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/gi, " ")
-        .replace(/&amp;/gi, "&")
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
+    const cells = [...match[0].matchAll(/<t[dh]\b[\s\S]*?<\/t[dh]>/gi)].map((cell) => decodeCell(cell[0]));
     if (cells.some(Boolean)) rows.push(cells);
   }
   return rows;
 }
 
-function documentRows(html: string): string[][] {
+function decodeCell(raw: string): string {
+  return raw
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#(\d+);/g, (_, digits: string) => codePoint(Number(digits)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, digits: string) => codePoint(Number.parseInt(digits, 16)))
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&zwnj;/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function codePoint(code: number): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) return "";
+  return String.fromCodePoint(code);
+}
+
+type LabelHit = { row: string[]; index: number; label: string };
+
+function rowLabels(row: string[]): LabelHit[] {
+  const hits: LabelHit[] = [];
+  for (let index = 0; index < row.length; index += 1) {
+    const label = foldLabel(row[index] ?? "");
+    if (!label || /^\d+$/.test(label)) continue;
+    hits.push({ row, index, label });
+  }
+  return hits;
+}
+
+function isSalesLabel(label: string): boolean {
+  if (label.includes("بهای") || label.includes("هزینه") || label.includes("سایر") || label.includes("غیر") || label.includes("ناخالص")) return false;
+  return label === "درآمدهایعملیاتی"
+    || label === "درآمدعملیاتی"
+    || label === "جمعدرآمدهایعملیاتی"
+    || label === "جمعدرآمدها"
+    || label === "فروشخالص"
+    || label === "فروش"
+    || (label.startsWith("درآمدهایعملیاتی") && !label.includes("تمام"));
+}
+
+function isNetLabel(label: string): boolean {
+  if (label.includes("هرسهم") || label.includes("انباشته") || label.includes("ناخالص") || label.includes("تداوم") || label.includes("متوقف") || label.includes("فاقد") || label.includes("اقلیت")) {
+    return false;
+  }
+  return label === "سودزیانخالص" || label === "سودخالص" || label.startsWith("سودزیانخالص") || label.startsWith("سودخالص");
+}
+
+function isOperatingLabel(label: string): boolean {
+  return label.includes("سود") && label.includes("عملیاتی") && !label.includes("خالص") && !label.includes("درآمد") && !label.includes("هزینه");
+}
+
+function isAssetLabel(label: string): boolean {
+  return label === "جمعداراییها" || (label.startsWith("جمعداراییها") && !label.includes("بدهی"));
+}
+
+function isEquityLabel(label: string): boolean {
+  return label === "جمعحقوقمالکانه" || label === "جمعحقوقصاحبانسهام";
+}
+
+function findHit(rows: string[][], accept: (label: string) => boolean, preferred: string[] = []): LabelHit | null {
+  const hits = rows.flatMap(rowLabels).filter((hit) => accept(hit.label));
+  for (const name of preferred) {
+    const exact = hits.find((hit) => hit.label === name);
+    if (exact) return exact;
+  }
+  return hits[0] ?? null;
+}
+
+function noteColumn(rows: string[][]): number | null {
+  for (const row of rows.slice(0, 6)) {
+    const index = row.findIndex((cell) => foldLabel(cell).includes("یادداشت"));
+    if (index >= 0) return index;
+  }
+  return null;
+}
+
+function amountsAfter(row: string[], labelIndex: number, noteIndex: number | null): number[] {
+  const amounts: number[] = [];
+  for (let index = labelIndex + 1; index < row.length; index += 1) {
+    if (index === noteIndex) continue;
+    const value = parseCodalNumber(row[index] ?? "");
+    if (value == null) continue;
+    amounts.push(value);
+  }
+  return amounts;
+}
+
+function statementTables(html: string): string[][][] {
   const tables = htmlTables(html);
-  return (tables.length > 0 ? tables : [html]).flatMap(tableRows);
+  return (tables.length > 0 ? tables : [html]).map(tableRows).filter((rows) => rows.length > 0);
 }
 
-function firstAmount(cells: string[]): number | null {
-  for (const cell of cells.slice(1)) {
-    const value = parseCodalNumber(cell);
-    if (value != null) return value;
+function lastMatching(tables: string[][][], accept: (rows: string[][]) => boolean): string[][] | null {
+  let found: string[][] | null = null;
+  for (const rows of tables) {
+    if (accept(rows)) found = rows;
   }
-  return null;
+  return found;
 }
 
-function findRow(rows: string[][], predicate: (label: string) => boolean): string[] | null {
-  for (const row of rows) {
-    const label = foldLabel(row[0] ?? "");
-    if (label && predicate(label)) return row;
-  }
-  return null;
+function tableHas(rows: string[][], accept: (label: string) => boolean): boolean {
+  return rows.some((row) => rowLabels(row).some((hit) => accept(hit.label)));
 }
 
 export function parseStatementHtml(html: string): StatementFigures {
-  const rows = documentRows(html);
-  const salesRow = findRow(rows, (label) => label === "درآمدهایعملیاتی");
-  const netRow = findRow(rows, (label) => label === "سودزیانخالص");
-  const sales = salesRow ? firstAmount(salesRow) : null;
-  const netIncome = netRow ? firstAmount(netRow) : null;
-  if (sales == null || netIncome == null) throw new CodalShapeError(STATEMENT_SHAPE);
+  const tables = statementTables(html);
+  const income = lastMatching(tables, (rows) => tableHas(rows, isNetLabel));
+  if (!income) throw new CodalShapeError(STATEMENT_SHAPE);
+  const balance = lastMatching(tables, (rows) => tableHas(rows, (label) => isAssetLabel(label) || isEquityLabel(label))) ?? income;
+  const incomeNote = noteColumn(income);
+  const balanceNote = noteColumn(balance);
+  const salesHit = findHit(income, isSalesLabel, ["درآمدهایعملیاتی", "جمعدرآمدهایعملیاتی", "درآمدعملیاتی", "جمعدرآمدها", "فروشخالص", "فروش"]);
+  const netHit = findHit(income, isNetLabel, ["سودزیانخالص", "سودخالص"]);
+  const netIncome = netHit ? amountsAfter(netHit.row, netHit.index, incomeNote)[0] ?? null : null;
+  if (netIncome == null) throw new CodalShapeError(STATEMENT_SHAPE);
 
-  const epsRow =
-    findRow(rows, (label) => label.includes("هرسهم") && label.includes("خالص")) ??
-    findRow(rows, (label) => label.includes("هرسهم") && label.includes("پایه"));
-  const equityRow = findRow(rows, (label) => label === "جمعحقوقمالکانه");
+  const amount = (hit: LabelHit | null, note: number | null, place: number) =>
+    hit ? amountsAfter(hit.row, hit.index, note)[place] ?? null : null;
+  const incomeHit = (accept: (label: string) => boolean, preferred: string[] = []) => findHit(income, accept, preferred);
+  const balanceHit = (accept: (label: string) => boolean, preferred: string[] = []) => findHit(balance, accept, preferred);
+  const inventory = balanceHit((label) => label.includes("موجودیموادوکالا") || label === "موجودیکالا");
 
   return {
-    sales,
+    sales: amount(salesHit, incomeNote, 0),
     netIncome,
-    equity: equityRow ? firstAmount(equityRow) : null,
-    periodEps: epsRow ? firstAmount(epsRow) : null,
+    equity: amount(balanceHit(isEquityLabel, ["جمعحقوقمالکانه", "جمعحقوقصاحبانسهام"]), balanceNote, 0),
+    periodEps: amount(incomeHit((label) => label.includes("هرسهم") && (label.includes("خالص") || label.includes("پایه"))), incomeNote, 0),
+    operatingProfit: amount(incomeHit(isOperatingLabel), incomeNote, 0),
+    otherOperatingIncome: amount(incomeHit((label) => label.includes("سایردرآمد") && !label.includes("غیرعملیاتی") && !label.includes("هزینه")), incomeNote, 0),
+    totalAssets: amount(balanceHit(isAssetLabel, ["جمعداراییها"]), balanceNote, 0),
+    receivables: amount(balanceHit((label) => label.includes("دریافتنیهایتجاری") || label.includes("حسابهاواسناددریافتنی")), balanceNote, 0),
+    inventory: amount(inventory, balanceNote, 0),
+    priorInventory: amount(inventory, balanceNote, 1),
+    cogs: amount(incomeHit((label) => label.includes("بهایتمامشده")), incomeNote, 0),
+    retainedEarnings: amount(balanceHit((label) => label === "سودانباشته" || label.startsWith("سودزیانانباشته")), balanceNote, 0),
   };
 }
 
@@ -326,7 +584,7 @@ export function mergeSalesTrend(existing: SalesPoint[], incoming: SalesPoint[]):
   for (const point of incoming) {
     if (point.period && Number.isFinite(point.sales)) byPeriod.set(point.period, point);
   }
-  return [...byPeriod.values()].sort((left, right) => left.period.localeCompare(right.period)).slice(-12);
+  return [...byPeriod.values()].sort((left, right) => left.period.localeCompare(right.period)).slice(-18);
 }
 
 export function readSalesTrend(value: Json): SalesPoint[] {

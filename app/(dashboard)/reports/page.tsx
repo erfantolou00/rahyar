@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage, quietControlClass } from "@/components/chrome";
-import { captureReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
+import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage, quietControlClass } from "@/components/chrome";
+import { captureReport, createFisReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
+import { parseFisContent } from "@/lib/finance/publish-fis";
 import { formatMoney, formatNumber, formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
@@ -44,6 +45,17 @@ export default async function ReportsPage({
               </button>
             </form>
           </div>
+          <Panel title="گزارش بنیادی سهام">
+            <form action={createFisReport} className="grid gap-3 sm:grid-cols-[12rem_12rem_auto] sm:items-end">
+              <Field label="نرخ اخزا (درصد)">
+                <input name="akhza" required inputMode="decimal" dir="ltr" placeholder="۴۰" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </Field>
+              <Field label="تورم دوازده‌ماهه (درصد)">
+                <input name="inflation" inputMode="decimal" dir="ltr" placeholder="اختیاری" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </Field>
+              <SubmitButton>ساخت گزارش FIS</SubmitButton>
+            </form>
+          </Panel>
           {reports.data.length === 0 ? (
             <Panel>
               <EmptyState>گزارشی ذخیره نشده است.</EmptyState>
@@ -52,6 +64,7 @@ export default async function ReportsPage({
             <ul className="grid gap-3">
               {reports.data.map((report) => {
                 const weekly = parseWeeklyContent(report.content);
+                const fis = parseFisContent(report.content);
                 return (
                   <li key={report.id}>
                     <Link
@@ -73,6 +86,15 @@ export default async function ReportsPage({
                             {" · "}
                             <span className="numeric">{formatNumber(weekly.alerts.length, 0)}</span>
                             {" هشدار"}
+                          </p>
+                        ) : fis ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            گزارش بنیادی سهام
+                            {" · "}
+                            <span className="numeric">{formatNumber(fis.stocks.length, 0)}</span>
+                            {" سهم"}
+                            {" · "}
+                            اخزا <span className="numeric">{formatNumber(fis.akhza_percent, 2)}</span>
                           </p>
                         ) : (
                           <p className="mt-2 text-sm text-muted-foreground">تصویر ذخیره‌شده دفتر</p>

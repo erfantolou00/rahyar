@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { interpretStatusMessage } from "@/lib/ai/interpret-weekly";
 import { PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { InterpretReportButton } from "@/components/interpret-report-button";
+import { FisReportView } from "@/components/fis-report-view";
 import { WeeklyReportView } from "@/components/weekly-report-view";
+import { parseFisContent } from "@/lib/finance/publish-fis";
 import { formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
 import type { Report } from "@/lib/finance/types";
@@ -45,6 +47,7 @@ export default async function ReportDetailPage({
 
   const report = data as Report;
   const weekly = parseWeeklyContent(report.content);
+  const fis = parseFisContent(report.content);
   const note = deliveryNote(query.delivery);
   const interpretNote = interpretStatusMessage(query.interpret);
 
@@ -67,6 +70,8 @@ export default async function ReportDetailPage({
       {weekly && !weekly.commentary ? <div className="mb-4"><InterpretReportButton reportId={report.id} /></div> : null}
       {report.type === "weekly" && weekly ? (
         <WeeklyReportView content={weekly} />
+      ) : fis ? (
+        <FisReportView content={fis} />
       ) : (
         <Panel title="محتوا">
           <pre className="numeric overflow-x-auto text-start text-xs leading-6" dir="ltr">

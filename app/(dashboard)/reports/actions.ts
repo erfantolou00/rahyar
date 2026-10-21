@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { interpretWeeklyReport } from "@/lib/ai/interpret-weekly";
+import { parseOptionalNumber, parseRequiredNumber, readString } from "@/lib/finance/parse";
+import { publishFisReport } from "@/lib/finance/publish-fis";
 import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { loadPortfolio, snapshotJson } from "@/lib/finance/queries";
 import { requireSession } from "@/lib/supabase/auth";
@@ -36,4 +38,19 @@ export async function createWeeklyReport() {
   revalidatePath(`/reports/${result.id}`);
   const interpret = interpreted.ok ? "" : `&interpret=${interpreted.code}`;
   redirect(`/reports/${result.id}?delivery=${result.delivery.bale}-${result.delivery.push}${interpret}`);
+}
+
+export async function createFisReport(formData: FormData) {
+  const akhza = parseRequiredNumber(readString(formData, "akhza"), { min: 0, max: 200, exclusiveMin: true });
+  const inflationText = readString(formData, "inflation");
+  const inflation = inflationText ? parseOptionalNumber(inflationText, { min: -20, max: 400 }) : null;
+  if (akhza == null || inflation === undefined) redirect("/reports?error=invalid");
+
+  const { supabase } = await requireSession();
+  const result = await publishFisReport(supabase, akhza, inflation);
+  if (!result.ok) redirect("/reports?error=save");
+
+  revalidatePath("/reports");
+  revalidatePath(`/reports/${result.id}`);
+  redirect(`/reports/${result.id}`);
 }
