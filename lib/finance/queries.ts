@@ -242,8 +242,9 @@ export async function loadStockHistory(
     .in("symbol", symbols)
     .order("period", { ascending: false });
   if (periods.error) {
-    console.error(periods.error);
-    return { ok: false, missingSchema: missingSchema(periods.error) };
+    const missing = missingSchema(periods.error);
+    if (!missing) console.error(periods.error);
+    return { ok: false, missingSchema: missing };
   }
   const months = await supabase
     .from("stock_monthly")
@@ -251,8 +252,9 @@ export async function loadStockHistory(
     .in("symbol", symbols)
     .order("period", { ascending: false });
   if (months.error) {
-    console.error(months.error);
-    return { ok: false, missingSchema: missingSchema(months.error) };
+    const missing = missingSchema(months.error);
+    if (!missing) console.error(months.error);
+    return { ok: false, missingSchema: missing };
   }
   return {
     ok: true,
