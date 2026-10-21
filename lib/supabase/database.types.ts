@@ -21,6 +21,9 @@ import type {
   Report,
   MacroIndicatorRow,
   StockFundamentals,
+  StockMonthly,
+  StockPeriod,
+  StockScore,
   ReportType,
   Transaction,
   TransactionType,
@@ -275,6 +278,59 @@ export type Database = {
           fetched_at?: string;
         };
         Update: Partial<StockFundamentals>;
+        Relationships: [];
+      };
+      stock_periods: {
+        Row: StockPeriod;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          period: string;
+          months: number;
+          kind: StockPeriod["kind"];
+          tracing_no: string;
+          revision_of?: string | null;
+          figures: Json;
+          source: string;
+          fetched_at?: string;
+        };
+        Update: Partial<StockPeriod>;
+        Relationships: [];
+      };
+      stock_monthly: {
+        Row: StockMonthly;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          period: string;
+          sales_value?: Numeric | null;
+          sales_qty?: Numeric | null;
+          production_qty?: Numeric | null;
+          avg_rate?: Numeric | null;
+          tracing_no: string;
+          source: string;
+        };
+        Update: Partial<StockMonthly>;
+        Relationships: [];
+      };
+      stock_scores: {
+        Row: StockScore;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          as_of?: string;
+          trigger: StockScore["trigger"];
+          score?: Numeric | null;
+          status: string;
+          model_version: string;
+          factors: Json;
+          observation: Json;
+          forward_pe?: Numeric | null;
+        };
+        Update: Partial<StockScore>;
         Relationships: [];
       };
       macro_indicators: {

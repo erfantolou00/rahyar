@@ -237,6 +237,50 @@ export type StockFundamentals = {
   fetched_at: string;
 };
 
+export type StatementKind = "interim" | "annual";
+export type ScoreTrigger = "manual" | "statement" | "backfill";
+
+export type StockPeriod = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  period: string;
+  months: number;
+  kind: StatementKind;
+  tracing_no: string;
+  revision_of: string | null;
+  figures: Json;
+  source: string;
+  fetched_at: string;
+};
+
+export type StockMonthly = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  period: string;
+  sales_value: Numeric | null;
+  sales_qty: Numeric | null;
+  production_qty: Numeric | null;
+  avg_rate: Numeric | null;
+  tracing_no: string;
+  source: string;
+};
+
+export type StockScore = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  as_of: string;
+  trigger: ScoreTrigger;
+  score: Numeric | null;
+  status: string;
+  model_version: string;
+  factors: Json;
+  observation: Json;
+  forward_pe: Numeric | null;
+};
+
 export type Report = {
   id: string;
   user_id: string;
