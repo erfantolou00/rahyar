@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { LineChart } from "lucide-react";
-import { createAsset, deleteAsset, sellHolding, updateAsset } from "@/app/(dashboard)/basket/actions";
+import { createAsset, deleteAsset, moveCash, sellHolding, updateAsset } from "@/app/(dashboard)/basket/actions";
+import { AccountSelect, type BasketAccount } from "@/components/basket/account-select";
+import { LedgerPanel } from "@/components/basket/ledger-panel";
 import { todayKey } from "@/lib/finance/holding-growth";
+import { isCashAsset, isLedgerAsset } from "@/lib/finance/ledger";
+import { toNumber } from "@/lib/finance/format";
 import { AssetFields } from "@/components/basket/asset-fields";
 import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 import { FundamentalsPanel } from "@/components/basket/fundamentals-panel";
@@ -46,6 +50,9 @@ export function BasketBoard({
   totalTone,
   fundamentals,
   fundamentalsSchema,
+  ledgerReady,
+  accounts,
+  positions,
 }: {
   marks: PresentedMark[];
   rows: PresentedRow[];
@@ -55,10 +62,26 @@ export function BasketBoard({
   totalTone: ValueTone;
   fundamentals: PresentedFundamental[];
   fundamentalsSchema: boolean | null;
+  ledgerReady: boolean;
+  accounts: BasketAccount[];
+  positions: BasketPosition[];
 }) {
   const [editing, setEditing] = useState<PresentedRow | null>(null);
   const [selling, setSelling] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
+  const [cashing, setCashing] = useState<PresentedRow | null>(null);
+  const [sellKey, setSellKey] = useState("");
+  const [cashKey, setCashKey] = useState("");
+
+  function openSell(row: PresentedRow) {
+    setSellKey(crypto.randomUUID());
+    setSelling(row);
+  }
+
+  function openCash(row: PresentedRow) {
+    setCashKey(crypto.randomUUID());
+    setCashing(row);
+  }
   const [growth, setGrowth] = useState<PresentedRow | null>(null);
   const [tab, setTab] = useState<"holdings" | "fundamentals">("holdings");
 
@@ -117,13 +140,41 @@ export function BasketBoard({
             <DialogHeader>
               <DialogTitle>دارایی جدید</DialogTitle>
               <DialogDescription>
-                برای سهم و صندوق این فرم یک خرید است: اگر همان نماد را داشته باشید، تعداد به همان ردیف اضافه می‌شود و میانگین از دفتر معاملات حساب می‌شود. طلا، دلار و بقیه هنوز ردیف جدا می‌سازند.
+                سهم، صندوق، طلا، سکه، دلار، رمزارز و نقد در دفتر معاملات ثبت می‌شوند. نماد تکراری به همان ردیف اضافه می‌شود. اگر «از نقد حساب کم شود» خالی باشد، دارایی جدید بدون جابه‌جایی نقد ثبت می‌شود.
               </DialogDescription>
             </DialogHeader>
-            <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" includeDate defaultDate={todayKey()} />
+            <AssetEditor
+              action={createAsset}
+              values={emptyAssetValues()}
+              submitLabel="افزودن به سبد"
+              includeDate
+              defaultDate={todayKey()}
+              accounts={accounts}
+              showSettle
+            />
           </DialogContent>
         </Dialog>
       </div>
+
+      <LedgerPanel
+        ready={ledgerReady}
+        accounts={accounts}
+        positions={positions.flatMap((position) => {
+          const holding = rows.find((row) => row.id === position.asset_id);
+          if (!holding) return [];
+          return [{
+            accountId: position.account_id,
+            assetId: position.asset_id,
+            name: holding.cells.name,
+            quantity: toNumber(position.quantity),
+          }];
+        })}
+        holdings={rows.filter((row) => isLedgerAsset(row.values.type)).map((row) => ({
+          id: row.id,
+          name: row.cells.name,
+          currency: row.values.price_unit === "usd" ? "usd" as const : "rial" as const,
+        }))}
+      />
 
       {rows.length === 0 ? (
         <Card>
@@ -165,7 +216,13 @@ export function BasketBoard({
               trailing={{
                 label: "عملیات",
                 render: (row) => (
-                  <RowActions row={row} onEdit={setEditing} onSell={setSelling} onRemove={setRemoving} />
+                  <RowActions
+                    row={row}
+                    onEdit={setEditing}
+                    onSell={openSell}
+                    onCash={openCash}
+                    onRemove={setRemoving}
+                  />
                 ),
               }}
             />
@@ -196,7 +253,13 @@ export function BasketBoard({
                         </span>
                       </div>
                     ))}
-                    <RowActions row={row} onEdit={setEditing} onSell={setSelling} onRemove={setRemoving} />
+                    <RowActions
+                      row={row}
+                      onEdit={setEditing}
+                      onSell={openSell}
+                      onCash={openCash}
+                      onRemove={setRemoving}
+                    />
                   </CardContent>
                 </Card>
               </li>
@@ -212,8 +275,8 @@ export function BasketBoard({
           <DialogHeader>
             <DialogTitle>ویرایش دارایی</DialogTitle>
             <DialogDescription>
-              {editing && listedRow(editing)
-                ? "تعداد و میانگین سهم و صندوق فقط با خرید و فروش عوض می‌شود."
+              {editing && ledgerRow(editing)
+                ? "تعداد و میانگین از دفتر معاملات می‌آید و در این فرم عوض نمی‌شود."
                 : "قیمت‌ها با همان مبنای ذخیره‌شده، ریال یا دلار، ویرایش می‌شوند."}
             </DialogDescription>
           </DialogHeader>
@@ -224,7 +287,7 @@ export function BasketBoard({
               values={editing.values}
               id={editing.id}
               submitLabel="ذخیره"
-              lockPosition={listedRow(editing)}
+              lockPosition={ledgerRow(editing)}
             />
           ) : null}
         </DialogContent>
@@ -237,12 +300,19 @@ export function BasketBoard({
           <DialogHeader>
             <DialogTitle>فروش {selling?.cells.name}</DialogTitle>
             <DialogDescription>
-              این فروش از مانده کم می‌شود. میانگین خرید سهم‌های باقی‌مانده همان می‌ماند و کارمزد فقط از پول دریافتی کم می‌شود.
+              این فروش از ماندهٔ همان حساب کم می‌شود و نقد همان حساب را زیاد می‌کند. میانگین مقدار باقی‌مانده ثابت می‌ماند و کارمزد فقط از پول دریافتی کم می‌شود.
             </DialogDescription>
           </DialogHeader>
           {selling ? (
             <form action={sellHolding} className="grid gap-4">
               <input type="hidden" name="id" value={selling.id} />
+              <input type="hidden" name="idempotency_key" value={sellKey} />
+              <AccountSelect
+                accounts={accounts}
+                currency={selling.values.price_unit === "usd" ? "usd" : "rial"}
+                preferredId={preferredAccount(positions, selling.id)}
+                id="sell-account"
+              />
               <div className="grid gap-1.5">
                 <label htmlFor="sell-quantity" className="text-sm font-medium">تعداد</label>
                 <input id="sell-quantity" name="quantity" required inputMode="decimal" dir="ltr" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
@@ -258,6 +328,42 @@ export function BasketBoard({
               <ShamsiDateField name="traded_on" defaultValue={todayKey()} label="تاریخ فروش" />
               <DialogFooter>
                 <SaveButton>ثبت فروش</SaveButton>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cashing != null} onOpenChange={(open) => !open && setCashing(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>نقد {cashing?.cells.name}</DialogTitle>
+            <DialogDescription>واریز و برداشت فقط موجودی همین دارایی نقد را در حساب انتخاب‌شده عوض می‌کند.</DialogDescription>
+          </DialogHeader>
+          {cashing ? (
+            <form action={moveCash} className="grid gap-4">
+              <input type="hidden" name="id" value={cashing.id} />
+              <input type="hidden" name="idempotency_key" value={cashKey} />
+              <AccountSelect
+                accounts={accounts}
+                currency={cashing.values.price_unit === "usd" ? "usd" : "rial"}
+                preferredId={preferredAccount(positions, cashing.id)}
+                id="cash-account"
+              />
+              <div className="grid gap-1.5">
+                <label htmlFor="cash-direction" className="text-sm font-medium">عمل</label>
+                <select id="cash-direction" name="direction" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm">
+                  <option value="deposit">واریز</option>
+                  <option value="withdraw">برداشت</option>
+                </select>
+              </div>
+              <div className="grid gap-1.5">
+                <label htmlFor="cash-quantity" className="text-sm font-medium">مبلغ</label>
+                <input id="cash-quantity" name="quantity" required inputMode="decimal" dir="ltr" className="h-10 rounded-lg border border-input bg-card px-2.5 text-sm" />
+              </div>
+              <ShamsiDateField name="traded_on" defaultValue={todayKey()} label="تاریخ" />
+              <DialogFooter>
+                <SaveButton>ثبت</SaveButton>
               </DialogFooter>
             </form>
           ) : null}
@@ -316,36 +422,51 @@ function Summary({ label, value, tone = "flat" }: { label: string; value: string
   );
 }
 
-function listedRow(row: PresentedRow): boolean {
-  return row.values.type === "stock" || row.values.type === "fund";
+function ledgerRow(row: PresentedRow): boolean {
+  return isLedgerAsset(row.values.type);
+}
+
+function preferredAccount(positions: BasketPosition[], assetId: string): string | null {
+  const held = positions.filter((position) => position.asset_id === assetId && toNumber(position.quantity) > 0);
+  return held[0]?.account_id ?? null;
 }
 
 function RowActions({
   row,
   onEdit,
   onSell,
+  onCash,
   onRemove,
 }: {
   row: PresentedRow;
   onEdit: (row: PresentedRow) => void;
   onSell: (row: PresentedRow) => void;
+  onCash: (row: PresentedRow) => void;
   onRemove: (row: PresentedRow) => void;
 }) {
-  const openListed = listedRow(row) && Number(row.values.quantity) > 0;
+  const ledger = ledgerRow(row);
+  const open = ledger && Number(row.values.quantity) > 0;
+  const cash = ledger && isCashAsset(row.values.type);
   return (
     <div className="flex gap-2">
       <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onEdit(row)}>
         ویرایش
       </Button>
-      {openListed ? (
+      {cash ? (
+        <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onCash(row)}>
+          نقد
+        </Button>
+      ) : null}
+      {open && !cash ? (
         <Button type="button" variant="outline" className="h-11 px-4" onClick={() => onSell(row)}>
           فروش
         </Button>
-      ) : (
+      ) : null}
+      {!open ? (
         <Button type="button" variant="destructive" className="h-11 px-4" onClick={() => onRemove(row)}>
           حذف
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -358,6 +479,8 @@ function AssetEditor({
   includeDate = false,
   defaultDate = "",
   lockPosition = false,
+  accounts = [],
+  showSettle = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   values: AssetFormValues;
@@ -366,16 +489,44 @@ function AssetEditor({
   includeDate?: boolean;
   defaultDate?: string;
   lockPosition?: boolean;
+  accounts?: BasketAccount[];
+  showSettle?: boolean;
 }) {
   return (
     <form action={action} className="grid gap-4">
-      {id ? <input type="hidden" name="id" value={id} /> : null}
-      <AssetFields values={values} includeDate={includeDate} defaultDate={defaultDate} lockPosition={lockPosition} />
+      {id ? <input type="hidden" name="id" value={id} /> : <EntryKey />}
+      <AssetFields
+        values={values}
+        includeDate={includeDate}
+        defaultDate={defaultDate}
+        lockPosition={lockPosition}
+        accounts={showSettle ? accounts : []}
+      />
+      {showSettle ? (
+        <label className="flex items-start gap-2 text-sm leading-6">
+          <input type="checkbox" name="settle" value="yes" className="mt-1" />
+          <span>از نقد همین حساب کم شود. برای دارایی جدید، بدون این گزینه نقد جابه‌جا نمی‌شود.</span>
+        </label>
+      ) : null}
       <DialogFooter>
         <SaveButton>{submitLabel}</SaveButton>
       </DialogFooter>
     </form>
   );
+}
+
+export type BasketPosition = {
+  account_id: string;
+  asset_id: string;
+  quantity: number | string;
+};
+
+function EntryKey() {
+  const [entryKey, setEntryKey] = useState("");
+  useEffect(() => {
+    setEntryKey(crypto.randomUUID());
+  }, []);
+  return <input type="hidden" name="idempotency_key" value={entryKey} />;
 }
 
 function SaveButton({ children }: { children: React.ReactNode }) {

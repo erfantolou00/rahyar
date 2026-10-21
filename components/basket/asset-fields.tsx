@@ -5,6 +5,8 @@ import { allocationClasses, suggestAllocationClass } from "@/lib/finance/allocat
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetFields, type AssetField, type AssetFormValues } from "@/lib/finance/basket-fields";
 import { priceUnits, type PriceUnit } from "@/lib/finance/prices/unit";
+import { AccountSelect, type BasketAccount } from "@/components/basket/account-select";
+import { isCashAsset } from "@/lib/finance/ledger";
 import { assetTypes, type AssetType } from "@/lib/finance/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +20,13 @@ export function AssetFields({
   includeDate = false,
   defaultDate = "",
   lockPosition = false,
+  accounts = [],
 }: {
   values: AssetFormValues;
   includeDate?: boolean;
   defaultDate?: string;
   lockPosition?: boolean;
+  accounts?: BasketAccount[];
 }) {
   const [type, setType] = useState(values.type);
   const [symbol, setSymbol] = useState(values.symbol);
@@ -49,7 +53,6 @@ export function AssetFields({
   const fields = lockPosition
     ? assetFields.filter((field) => field.name !== "quantity" && field.name !== "avg_buy_price" && field.name !== "price_unit")
     : assetFields;
-  const listed = type === "stock" || type === "fund";
 
   return (
     <div className="grid gap-3">
@@ -73,17 +76,18 @@ export function AssetFields({
           ) : null}
         </Fragment>
       ))}
+      {accounts.length > 0 ? <AccountSelect key={unit} accounts={accounts} currency={unit} /> : null}
       {lockPosition ? (
         <p className="text-sm leading-6 text-muted-foreground">
           تعداد {values.quantity || "۰"} و قیمت خرید متوسط {values.avg_buy_price || "—"} از دفتر خرید و فروش می‌آید و اینجا عوض نمی‌شود.
         </p>
       ) : null}
-      {!lockPosition && listed ? (
+      {!lockPosition && !isCashAsset(type) ? (
         <div className="grid gap-1.5">
           <Label htmlFor="asset-fee">کارمزد ({unitLabels[unit]})</Label>
           <Input id="asset-fee" name="fee" defaultValue="" inputMode="decimal" dir="ltr" min={0} placeholder="۰" className={controlClass} />
           <p className="text-xs leading-5 text-muted-foreground">
-            به بهای خرید اضافه می‌شود. اگر یک دارایی نقد ریالی داشته باشید و این خرید ریالی باشد، همان مبلغ از نقد کم می‌شود.
+            به میانگین خرید اضافه می‌شود. فقط اگر «از نقد همین حساب کم شود» روشن باشد، مبلغ خرید و کارمزد از نقد همان حساب کم می‌شود.
           </p>
         </div>
       ) : null}

@@ -10,6 +10,8 @@ import type {
   Json,
   PortfolioSnapshot,
   Price,
+  LedgerAccount,
+  LedgerPosition,
   StockFundamentals,
 } from "@/lib/finance/types";
 import type { Database } from "@/lib/supabase/database.types";
@@ -198,6 +200,24 @@ function listedInUnit(priceRial: number, unit: PriceUnit, usdRial: number | null
   if (unit === "rial") return priceRial;
   if (usdRial == null || !(usdRial > 0)) return null;
   return priceRial / usdRial;
+}
+
+export async function loadLedger(supabase: FinanceClient): Promise<{
+  ready: boolean;
+  accounts: LedgerAccount[];
+  positions: Pick<LedgerPosition, "account_id" | "asset_id" | "quantity">[];
+}> {
+  const accounts = await supabase.from("accounts").select("*").order("name", { ascending: true });
+  if (accounts.error) {
+    if (!missingSchema(accounts.error)) console.error(accounts.error);
+    return { ready: false, accounts: [], positions: [] };
+  }
+  const positions = await supabase.from("positions").select("account_id,asset_id,quantity").gt("quantity", 0);
+  if (positions.error) {
+    console.error(positions.error);
+    return { ready: true, accounts: accounts.data ?? [], positions: [] };
+  }
+  return { ready: true, accounts: accounts.data ?? [], positions: positions.data ?? [] };
 }
 
 export async function loadStockFundamentals(

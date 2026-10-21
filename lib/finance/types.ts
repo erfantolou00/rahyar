@@ -12,12 +12,18 @@ export const assetTypes = [
 
 export const tradeSides = ["buy", "sell"] as const;
 
+export const accountKinds = ["brokerage", "bullion", "fx", "wallet"] as const;
+
+export const transactionTypes = ["buy", "sell", "deposit", "withdraw", "transfer"] as const;
+
 export const reportTypes = ["daily", "weekly", "event", "period"] as const;
 
 export const chatRoles = ["user", "assistant", "system"] as const;
 
 export type AssetType = (typeof assetTypes)[number];
 export type TradeSide = (typeof tradeSides)[number];
+export type AccountKind = (typeof accountKinds)[number];
+export type TransactionType = (typeof transactionTypes)[number];
 export type ReportType = (typeof reportTypes)[number];
 export type ChatRole = (typeof chatRoles)[number];
 
@@ -42,6 +48,47 @@ export type Asset = {
   acquired_on: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type LedgerAccount = {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: AccountKind;
+  currency: PriceUnit;
+  created_at: string;
+};
+
+export type LedgerPosition = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  asset_id: string;
+  quantity: Numeric;
+  avg_buy_price: Numeric | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Transaction = {
+  id: string;
+  user_id: string;
+  asset_id: string;
+  account_id: string;
+  counter_account_id: string | null;
+  cash_asset_id: string | null;
+  type: TransactionType;
+  qty: Numeric;
+  price: Numeric | null;
+  fee: Numeric;
+  price_unit: PriceUnit;
+  fx_rate: Numeric | null;
+  settles_cash: boolean;
+  origin: "opening" | "manual" | "confirmed";
+  idempotency_key: string | null;
+  date: string;
+  note: string | null;
+  created_at: string;
 };
 
 export type Trade = {

@@ -3,7 +3,7 @@ import { BasketBoard } from "@/components/basket/basket-board";
 import { Notice, PageHeader, SchemaNotice, errorMessage } from "@/components/chrome";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { presentBasket, presentFundamentals, presentMarks } from "@/lib/finance/basket-view";
-import { loadBasket, loadLivePrices, loadStockFundamentals } from "@/lib/finance/queries";
+import { loadBasket, loadLedger, loadLivePrices, loadStockFundamentals } from "@/lib/finance/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "سبد دارایی" };
@@ -15,10 +15,11 @@ export default async function BasketPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const [basket, livePrices, fundamentals] = await Promise.all([
+  const [basket, livePrices, fundamentals, ledger] = await Promise.all([
     loadBasket(supabase),
     loadLivePrices(supabase),
     loadStockFundamentals(supabase),
+    loadLedger(supabase),
   ]);
 
   if (!basket.ok) return <SchemaNotice missing={basket.missingSchema} />;
@@ -46,6 +47,9 @@ export default async function BasketPage({
         totalTone={view.totalTone}
         fundamentals={fundamentals.ok ? presentFundamentals(stockSymbols, fundamentals.data) : []}
         fundamentalsSchema={fundamentals.ok ? null : fundamentals.missingSchema}
+        ledgerReady={ledger.ready}
+        accounts={ledger.accounts}
+        positions={ledger.positions}
       />
     </div>
   );

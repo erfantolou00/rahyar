@@ -1,4 +1,5 @@
 import type {
+  AccountKind,
   Allocation,
   Alert,
   AlertFrequency,
@@ -10,6 +11,8 @@ import type {
   ChatRole,
   Json,
   NotifyFrequency,
+  LedgerAccount,
+  LedgerPosition,
   Numeric,
   Price,
   PriceDay,
@@ -19,6 +22,8 @@ import type {
   MacroIndicatorRow,
   StockFundamentals,
   ReportType,
+  Transaction,
+  TransactionType,
   Trade,
   TradeSide,
   UserSettings,
@@ -48,6 +53,59 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Asset>;
+        Relationships: [];
+      };
+      accounts: {
+        Row: LedgerAccount;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          kind: AccountKind;
+          currency: PriceUnit;
+          created_at?: string;
+        };
+        Update: Partial<LedgerAccount>;
+        Relationships: [];
+      };
+      positions: {
+        Row: LedgerPosition;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          account_id: string;
+          asset_id: string;
+          quantity?: Numeric;
+          avg_buy_price?: Numeric | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<LedgerPosition>;
+        Relationships: [];
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          asset_id: string;
+          account_id: string;
+          counter_account_id?: string | null;
+          cash_asset_id?: string | null;
+          type: TransactionType;
+          qty: Numeric;
+          price?: Numeric | null;
+          fee?: Numeric;
+          price_unit: PriceUnit;
+          fx_rate?: Numeric | null;
+          settles_cash?: boolean;
+          origin?: Transaction["origin"];
+          idempotency_key?: string | null;
+          date: string;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Transaction>;
         Relationships: [];
       };
       trades: {
@@ -252,6 +310,25 @@ export type Database = {
       };
     };
     Functions: {
+      post_transaction: {
+        Args: {
+          p_asset_id: string;
+          p_type: TransactionType;
+          p_qty: number;
+          p_traded_on: string;
+          p_account_id?: string;
+          p_price?: number | null;
+          p_fee?: number;
+          p_settles_cash?: boolean;
+          p_cash_asset_id?: string;
+          p_counter_account_id?: string;
+          p_origin?: Transaction["origin"];
+          p_fx_rate?: number;
+          p_note?: string;
+          p_idempotency_key?: string;
+        };
+        Returns: Transaction;
+      };
       replace_allocation: {
         Args: {
           p_asset_type: AssetType;
@@ -263,7 +340,9 @@ export type Database = {
       };
     };
     Enums: {
+      account_kind: AccountKind;
       asset_type: AssetType;
+      transaction_type: TransactionType;
       trade_side: TradeSide;
       report_type: ReportType;
       chat_role: ChatRole;

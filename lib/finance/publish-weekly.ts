@@ -90,24 +90,24 @@ export async function publishWeeklyReport(
   const fromDay = dayKey(new Date(now.getTime() - WEEK_MS).toISOString());
   const toDay = dayKey(now.toISOString());
   const tradeRows = await supabase
-    .from("trades")
-    .select("asset_id,cash_asset_id,side,quantity,price,fee,price_unit")
+    .from("transactions")
+    .select("asset_id,cash_asset_id,type,qty,price,fee,price_unit,settles_cash")
     .eq("user_id", userId)
-    .gte("traded_on", fromDay)
-    .lte("traded_on", toDay);
+    .gte("date", fromDay)
+    .lte("date", toDay);
   if (tradeRows.error && !schemaGap(tradeRows.error)) console.error(tradeRows.error);
   const usd = latestQuote(book.data.prices, "USD");
   const flows = tradeRows.error
     ? []
     : [...weekFlowAmounts(
         (tradeRows.data ?? []).flatMap((row) => {
-          if (!isPriceUnit(row.price_unit) || (row.side !== "buy" && row.side !== "sell")) return [];
-          const side: TradeSide = row.side;
+          if (!row.settles_cash || !isPriceUnit(row.price_unit) || (row.type !== "buy" && row.type !== "sell")) return [];
+          const side: TradeSide = row.type;
           return [{
             assetId: row.asset_id,
             cashAssetId: row.cash_asset_id,
             side,
-            quantity: toNumber(row.quantity),
+            quantity: toNumber(row.qty),
             price: row.price == null ? null : toNumber(row.price),
             fee: toNumber(row.fee),
             unit: row.price_unit,

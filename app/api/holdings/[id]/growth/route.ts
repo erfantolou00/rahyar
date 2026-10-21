@@ -51,10 +51,11 @@ async function loadHoldingLots(
   quantity: number,
 ): Promise<HoldingLot[] | null> {
   const trades = await supabase
-    .from("trades")
-    .select("side,quantity,price,fee,traded_on")
+    .from("transactions")
+    .select("type,qty,price,fee,date")
     .eq("asset_id", assetId)
-    .order("traded_on", { ascending: true });
+    .in("type", ["buy", "sell", "deposit", "withdraw"])
+    .order("date", { ascending: true });
   if (trades.error) {
     if (missingRelation(trades.error)) {
       return quantity > 0
@@ -68,10 +69,10 @@ async function loadHoldingLots(
     return quantity > 0 ? [{ day: "1970-01-01", side: "buy", quantity, price: null, fee: 0 }] : [];
   }
   return (trades.data ?? []).map((row) => ({
-    day: row.traded_on,
-    side: row.side,
-    quantity: toNumber(row.quantity),
-    price: row.price == null ? null : toNumber(row.price),
+    day: row.date,
+    side: row.type === "sell" || row.type === "withdraw" ? "sell" as const : "buy" as const,
+    quantity: toNumber(row.qty),
+    price: row.type === "deposit" || row.type === "withdraw" || row.price == null ? null : toNumber(row.price),
     fee: toNumber(row.fee),
   }));
 }
