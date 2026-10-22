@@ -1,3 +1,5 @@
+import { publishSymbolFis } from "@/lib/finance/publish-fis";
+import { followSyncedStatement, interpretStoredFisChange } from "@/lib/finance/statement-follow";
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
 import type { FinanceClient, LoadResult } from "@/lib/finance/queries";
 import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
@@ -114,7 +116,7 @@ async function rememberParsedHistory(
     statement: { letter: CodalLetter; letters: CodalLetter[]; figures: StatementFigures; source: string } | null;
     months: { point: SalesPoint; tracingNo: string; source: string }[];
   },
-): Promise<void> {
+): Promise<boolean> {
   const periods: PlannedPeriod[] = [];
   if (input.statement) {
     const built = periodFromStatement(input.statement);
@@ -130,9 +132,18 @@ async function rememberParsedHistory(
     });
     if (row) months.push(row);
   }
-  if (periods.length === 0 && months.length === 0) return;
-  const saved = await saveFundamentalHistory(supabase, userId, symbol, periods, months);
-  if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} history was not stored: ${saved.message}`);
+  if (periods.length === 0 && months.length === 0) return false;
+  let periodStored = false;
+  if (periods.length > 0) {
+    const saved = await saveFundamentalHistory(supabase, userId, symbol, periods, []);
+    if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} history was not stored: ${saved.message}`);
+    periodStored = saved.ok;
+  }
+  if (months.length > 0) {
+    const saved = await saveFundamentalHistory(supabase, userId, symbol, [], months);
+    if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} monthly history was not stored: ${saved.message}`);
+  }
+  return periodStored;
 }
 
 export async function mapPool<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
@@ -239,7 +250,7 @@ export async function syncSymbolFundamentals(
     return { ok: false, missingSchema: schemaGap(saved.error) };
   }
 
-  await rememberParsedHistory(supabase, userId, symbol, {
+  const periodStored = await rememberParsedHistory(supabase, userId, symbol, {
     statement: statementLetter && statementOutcome.figures && statementOutcome.source
       ? {
         letter: statementLetter,
@@ -251,9 +262,25 @@ export async function syncSymbolFundamentals(
     months: monthlyOutcome.stored,
   });
 
+  let alerted = false;
+  try {
+    const followed = await followSyncedStatement({
+      supabase,
+      userId,
+      symbol,
+      previousTracing: previous?.latest_tracing_no ?? null,
+      newest,
+      periodStored,
+      publish: () => publishSymbolFis(supabase, userId, symbol),
+      interpret: (notice) => interpretStoredFisChange(userId, notice),
+    });
+    alerted = followed.alerted;
+  } catch (error) {
+    console.error(error);
+  }
+
   const previousTracing = previous?.latest_tracing_no ?? null;
   const nextTracing = newest ? String(newest.tracingNo) : null;
-  let alerted = false;
   if (previousTracing && nextTracing && previousTracing !== nextTracing && newest) {
     const rule = clip(`${adjusted ? "تعدیل سود" : "گزارش جدید"} ${symbol} · ${newest.tracingNo}`, 200);
     const lead = adjusted

@@ -41,10 +41,18 @@ export function FisReportView({ content }: { content: FisReportContent }) {
                 {stock.score == null ? stock.reason : `امتیاز ${formatNumber(stock.score, 0)} از ۱۰۰. ${stock.reason}`}
                 {" "}
                 <span className="text-muted-foreground">
-                  نسبت آینده‌نگر <span className="numeric">{shown(stock.forward_pe)}</span>
+                  نسبت آینده‌نگر خطی <span className="numeric">{shown(stock.forward_pe)}</span>
+                  {" · فصلی "}
+                  <span className="numeric">{shown(stock.forward_pe_seasonal)}</span>
+                  {" (در امتیاز نیست)"}
                   {stock.previous_score == null ? "" : ` · قبل ${formatNumber(stock.previous_score, 0)}`}
                 </span>
               </p>
+              {stock.seasonal_gaps.length > 0 ? (
+                <ul className="mt-1 grid gap-1 text-xs leading-5 text-muted-foreground">
+                  {stock.seasonal_gaps.map((gap, index) => <li key={`${index}-${gap}`}>{gap}</li>)}
+                </ul>
+              ) : null}
               <div className="mt-2 grid gap-x-4 sm:grid-cols-2">
                 {stock.factors.map((factor) => (
                   <FactorRow key={factor.key} factor={factor} />

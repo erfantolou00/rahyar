@@ -43,6 +43,7 @@ export const alertKindLabels: Record<AlertKind, string> = {
   rule: "قاعدهٔ دستی",
   allocation_deviation: "انحراف تخصیص",
   codal_notice: "گزارش کدال",
+  fis_change: "تغییر ارزیابی",
 };
 
 export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {

@@ -32,7 +32,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "هشدارها" };
 
-const deliveryKinds = ["allocation_deviation", "codal_notice"] as const satisfies readonly AlertKind[];
+const deliveryKinds = ["allocation_deviation", "codal_notice", "fis_change"] as const satisfies readonly AlertKind[];
 
 function deliveryStatus(value: string | undefined): string | null {
   if (!value) return null;
@@ -68,7 +68,7 @@ export default async function AlertsPage({
     <div>
       <PageHeader
         title="هشدارها"
-        description="انحراف تخصیص و خبر کدال روی سرور بررسی می‌شوند و با تناوبی که اینجا می‌گذارید به بله و اعلان مرورگر می‌روند، حتی اگر این صفحه باز نباشد."
+        description="انحراف تخصیص، خبر کدال و تغییر ارزیابی روی سرور بررسی می‌شوند و با تناوبی که اینجا می‌گذارید به بله و اعلان مرورگر می‌روند، حتی اگر این صفحه باز نباشد."
       />
       <Notice message={errorMessage(params.error)} />
       {deliveryNote ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{deliveryNote}</p> : null}
@@ -120,7 +120,7 @@ export default async function AlertsPage({
 
           <Panel title="تناوب">
             <form action={setAlertFrequencies} className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 {deliveryKinds.map((kind) => (
                   <Field key={kind} label={alertKindLabels[kind]}>
                     <select

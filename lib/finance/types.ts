@@ -149,7 +149,7 @@ export type Allocation = {
   valid_to: string | null;
 };
 
-export const alertKinds = ["rule", "allocation_deviation", "codal_notice"] as const;
+export const alertKinds = ["rule", "allocation_deviation", "codal_notice", "fis_change"] as const;
 
 export type AlertKind = (typeof alertKinds)[number];
 

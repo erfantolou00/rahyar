@@ -17,7 +17,11 @@ import { assessFis, FIS_PROPOSAL_VERSION, payoutPercent, salesGrowth, scoreFisca
 import { latestScoreBySymbol, resolvePreviousScore } from "@/lib/finance/history";
 import { applyManualSheet, emptyStatement, parseStoredSheet, sheetHasNumbers, type ManualSheet } from "@/lib/finance/fis-manual";
 import { buildFisObservation } from "@/lib/finance/fis-observe";
-import { loadPortfolio, type FinanceClient } from "@/lib/finance/queries";
+import { groupTrendRows, type StoredTrendRow } from "@/lib/finance/trend/read";
+import { seasonalForwardPe } from "@/lib/finance/trend/seasonal";
+import type { TrendPeriod } from "@/lib/finance/trend/series";
+import type { FisChangeSnapshot } from "@/lib/finance/fis-change";
+import { loadBook, loadPortfolio, type FinanceClient } from "@/lib/finance/queries";
 import type { Json, StockFundamentals } from "@/lib/finance/types";
 
 export type FisStockReport = {
@@ -29,6 +33,8 @@ export type FisStockReport = {
   score: number | null;
   previous_score: number | null;
   forward_pe: number | null;
+  forward_pe_seasonal: number | null;
+  seasonal_gaps: string[];
   factors: FisFactor[];
   gaps: string[];
 };
@@ -267,6 +273,51 @@ async function readRahavard(symbol: string): Promise<{
   };
 }
 
+type TrendHistory =
+  | { ok: true; bySymbol: Map<string, TrendPeriod[]>; gaps: Map<string, string[]> }
+  | { ok: false; missing: boolean };
+
+async function loadTrendHistory(supabase: FinanceClient, symbols: string[]): Promise<TrendHistory> {
+  if (symbols.length === 0) return { ok: true, bySymbol: new Map(), gaps: new Map() };
+  const result = await supabase
+    .from("stock_periods")
+    .select("symbol, period, months, tracing_no, revision_of, figures")
+    .in("symbol", symbols);
+  if (result.error) {
+    if (!schemaGap(result.error)) console.error(result.error);
+    return { ok: false, missing: schemaGap(result.error) };
+  }
+  const stored: StoredTrendRow[] = (result.data ?? []).map((row) => ({
+    symbol: row.symbol,
+    period: row.period,
+    months: row.months,
+    tracingNo: row.tracing_no,
+    revisionOf: row.revision_of,
+    figures: row.figures,
+  }));
+  return { ok: true, ...groupTrendRows(stored) };
+}
+
+function seasonalFor(
+  history: TrendHistory,
+  symbol: string,
+  price: number | null,
+): { forwardPe: number | null; gaps: string[] } {
+  if (!history.ok) {
+    return {
+      forwardPe: null,
+      gaps: [history.missing ? "جدول تاریخچه برای نسبت فصلی موجود نیست." : "تاریخچهٔ صورت‌ها برای نسبت فصلی خوانده نشد."],
+    };
+  }
+  const periods = history.bySymbol.get(symbol) ?? [];
+  const unread = history.gaps.get(symbol) ?? [];
+  if (periods.length === 0) {
+    return { forwardPe: null, gaps: [...unread, "تاریخچهٔ صورت برای نسبت فصلی ذخیره نشده است."] };
+  }
+  const seasonal = seasonalForwardPe(periods, price);
+  return { forwardPe: seasonal.forwardPe, gaps: [...unread, ...seasonal.gaps] };
+}
+
 export async function publishFisReport(
   supabase: FinanceClient,
   akhzaPercent: number,
@@ -315,6 +366,7 @@ export async function publishFisReport(
       for (const [symbol, score] of latest) storedScores.set(symbol, score);
     }
   }
+  const trendHistory = await loadTrendHistory(supabase, symbols);
   const bands = valuationBands(akhzaPercent);
   const feed: FisFeed = options?.source === "rahavard" ? "rahavard" : "codal";
   const feedLabel = feed === "rahavard" ? "رهاورد" : "کدال";
@@ -365,6 +417,7 @@ export async function publishFisReport(
     if (statements.error && !figures) observation.gaps.unshift(statements.error);
     if (!figures) observation.gaps.unshift(`صورت مالی قابل‌خواندن از ${feedLabel} پیدا نشد.`);
     const result = assessFis(observation, akhzaPercent, inflationPercent);
+    const seasonal = seasonalFor(trendHistory, holding.symbol, holding.price);
     return {
       fallback: result.inflationFallback,
       observation,
@@ -377,6 +430,8 @@ export async function publishFisReport(
         score: result.score,
         previous_score: observation.previousScore,
         forward_pe: observation.forwardPe,
+        forward_pe_seasonal: seasonal.forwardPe,
+        seasonal_gaps: seasonal.gaps,
         factors: result.factors,
         gaps: observation.gaps,
       } satisfies FisStockReport,
@@ -454,6 +509,8 @@ export function parseFisContent(value: Json): FisReportContent | null {
       score: typeof stock.score === "number" ? stock.score : null,
       previous_score: typeof stock.previous_score === "number" ? stock.previous_score : null,
       forward_pe: typeof stock.forward_pe === "number" ? stock.forward_pe : null,
+      forward_pe_seasonal: typeof stock.forward_pe_seasonal === "number" ? stock.forward_pe_seasonal : null,
+      seasonal_gaps: Array.isArray(stock.seasonal_gaps) ? stock.seasonal_gaps.filter((gap): gap is string => typeof gap === "string") : [],
       factors: stock.factors.filter(isFactor),
       gaps: Array.isArray(stock.gaps) ? stock.gaps.filter((gap): gap is string => typeof gap === "string") : [],
     });
@@ -468,4 +525,151 @@ export function parseFisContent(value: Json): FisReportContent | null {
     source: value.source === "rahavard" || value.source === "codal" ? value.source : undefined,
     stocks,
   };
+}
+
+function changeFactors(value: Json): FisChangeSnapshot["factors"] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isFactor).map((factor) => ({ key: factor.key, label: factor.label, score: factor.score }));
+}
+
+/**
+ * Scores one owned symbol from Codal after a new statement was stored.
+ * Every read and the score insert filter on userId. No period report is written.
+ * The session publishFisReport path is unchanged and still relies on the caller session.
+ */
+export async function publishSymbolFis(
+  supabase: FinanceClient,
+  userId: string,
+  symbol: string,
+): Promise<
+  | { ok: true; previous: FisChangeSnapshot | null; next: FisChangeSnapshot }
+  | { ok: false; code: "portfolio" | "symbol" | "akhza" | "statement" | "save" }
+> {
+  const book = await loadBook(supabase, userId);
+  if (!book.ok) return { ok: false, code: "portfolio" };
+  const holding = book.data.snapshot.holdings.find((item) => item.type === "stock" && item.symbol === symbol && item.quantity > 0);
+  if (!holding) return { ok: false, code: "symbol" };
+
+  const fundamentalResult = await supabase
+    .from("stock_fundamentals")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("symbol", symbol)
+    .maybeSingle();
+  if (fundamentalResult.error) console.error(fundamentalResult.error);
+  const fundamental = (fundamentalResult.data ?? null) as StockFundamentals | null;
+
+  const scoreHistory = await supabase
+    .from("stock_scores")
+    .select("status, score, factors")
+    .eq("user_id", userId)
+    .eq("symbol", symbol)
+    .order("as_of", { ascending: false })
+    .limit(1);
+  if (scoreHistory.error) {
+    console.error(scoreHistory.error);
+    return { ok: false, code: "save" };
+  }
+  const stored = scoreHistory.data?.[0] ?? null;
+
+  const history = await supabase
+    .from("reports")
+    .select("content")
+    .eq("user_id", userId)
+    .eq("type", "period")
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (history.error) {
+    console.error(history.error);
+    return { ok: false, code: "akhza" };
+  }
+  let report: FisReportContent | null = null;
+  for (const row of history.data ?? []) {
+    report = parseFisContent(row.content);
+    if (report) break;
+  }
+  if (!report) return { ok: false, code: "akhza" };
+
+  const reported = report.stocks.find((stock) => stock.symbol === symbol) ?? null;
+  let previous: FisChangeSnapshot | null = reported
+    ? {
+      status: reported.status,
+      score: reported.score,
+      factors: reported.factors.map((factor) => ({ key: factor.key, label: factor.label, score: factor.score })),
+    }
+    : null;
+  if (stored) {
+    if (!statuses.has(stored.status as FisStatus)) {
+      console.error(`[fis] ${symbol} stored status was not readable`);
+      previous = null;
+    } else {
+      previous = {
+        status: stored.status as FisStatus,
+        score: scoreOrNull(stored.score),
+        factors: changeFactors(stored.factors),
+      };
+    }
+  }
+
+  const knownSales = readSalesTrend(fundamental?.sales_trend ?? []);
+  const statements = await readStatements(symbol, knownSales);
+  const sheet = parseStoredSheet(fundamental?.manual_sheet);
+  const manual = sheetHasNumbers(sheet);
+  const figures = applyManualSheet(statements.current?.figures ?? null, sheet);
+  if (!figures) return { ok: false, code: "statement" };
+  const months = sheet?.months ?? statements.current?.months ?? null;
+  const priorBase = statements.prior?.figures ?? null;
+  const priorFigures = sheet && (sheet.priorSales != null || sheet.priorOperatingProfit != null)
+    ? {
+      ...(priorBase ?? emptyStatement()),
+      sales: sheet.priorSales ?? priorBase?.sales ?? null,
+      operatingProfit: sheet.priorOperatingProfit ?? priorBase?.operatingProfit ?? null,
+    }
+    : priorBase;
+  const priorMonths = sheet?.priorMonths ?? statements.prior?.months ?? null;
+  const sameYear = Boolean(
+    (statements.current?.period && statements.prior?.period && statements.current.period.slice(0, 4) === statements.prior.period.slice(0, 4))
+    || (sheet?.priorMonths != null && months != null && priorMonths != null && months > priorMonths),
+  );
+  const manualGrowth = sheet?.priorPeriodSales != null ? salesGrowth(figures.sales, sheet.priorPeriodSales) : null;
+  const observation = buildFisObservation({
+    price: sheet?.price ?? holding.price,
+    months,
+    current: figures,
+    prior: priorFigures,
+    priorMonths,
+    sameFiscalYear: sameYear,
+    salesPoints: statements.salesPoints,
+    period: statements.current?.period ?? null,
+    fiscalYearScore: sheet?.fiscalYearScore ?? scoreFiscalYear(months, annualEndings(statements.current, statements.olderPeriods)),
+    ttmEps: sheet?.ttmEps ?? statements.ttmEps ?? optionalNumber(fundamental?.eps),
+    owned: true,
+    previousScore: resolvePreviousScore(stored ? scoreOrNull(stored.score) : undefined, reported?.score ?? null),
+    statementSalesGrowthPercent: manualGrowth ?? statements.statementSalesGrowth,
+    dividendRatioPercent: sheet?.dividendRatioPercent ?? statements.dividendRatio,
+  });
+  if (manual) observation.gaps.unshift("عددهایی که در فرم پر شده، به‌جای کدال نشسته‌اند.");
+  const result = assessFis(observation, report.akhza_percent, report.inflation_percent);
+  const next: FisChangeSnapshot = {
+    status: result.status,
+    score: result.score,
+    factors: result.factors.map((factor) => ({ key: factor.key, label: factor.label, score: factor.score })),
+  };
+  const scored = await supabase.from("stock_scores").insert({
+    user_id: userId,
+    symbol,
+    as_of: new Date().toISOString(),
+    trigger: "statement" as const,
+    score: result.score,
+    status: result.status,
+    model_version: FIS_PROPOSAL_VERSION,
+    factors: result.factors as unknown as Json,
+    observation: observation as unknown as Json,
+    forward_pe: observation.forwardPe,
+  });
+  if (scored.error) {
+    console.error(scored.error);
+    return { ok: false, code: "save" };
+  }
+  return { ok: true, previous, next };
 }

@@ -12,7 +12,7 @@ function fail(code: "invalid" | "save" | "push_missing" | "push" | "bale_token" 
   redirect(`/alerts?error=${code}`);
 }
 
-const deliveryKinds = ["allocation_deviation", "codal_notice"] as const satisfies readonly AlertKind[];
+const deliveryKinds = ["allocation_deviation", "codal_notice", "fis_change"] as const satisfies readonly AlertKind[];
 
 export async function setAlertFrequencies(formData: FormData) {
   const { supabase, userId } = await requireSession();
