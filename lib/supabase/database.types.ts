@@ -18,6 +18,8 @@ import type {
   PriceDay,
   PriceFeedRow,
   PriceUnit,
+  HoldingSnapshotRow,
+  PortfolioSnapshotRow,
   Report,
   MacroIndicatorRow,
   StockFundamentals,
@@ -346,6 +348,33 @@ export type Database = {
         Update: Partial<MacroIndicatorRow>;
         Relationships: [];
       };
+      portfolio_snapshots: {
+        Row: PortfolioSnapshotRow;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          day: string;
+          total_value: Numeric;
+          captured_at?: string;
+        };
+        Update: Partial<PortfolioSnapshotRow>;
+        Relationships: [];
+      };
+      holding_snapshots: {
+        Row: HoldingSnapshotRow;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          asset_id: string;
+          day: string;
+          quantity: Numeric;
+          price?: Numeric | null;
+          value: Numeric;
+          captured_at?: string;
+        };
+        Update: Partial<HoldingSnapshotRow>;
+        Relationships: [];
+      };
       chat_logs: {
         Row: ChatLog;
         Insert: {
@@ -394,6 +423,19 @@ export type Database = {
           p_formula_version: string;
         };
         Returns: Allocation;
+      };
+      adjust_average: {
+        Args: {
+          p_asset_id: string;
+          p_price: number;
+          p_traded_on: string;
+          p_note?: string;
+        };
+        Returns: null;
+      };
+      reset_price_history: {
+        Args: { p_user_id: string };
+        Returns: number;
       };
     };
     Enums: {

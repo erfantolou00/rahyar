@@ -1,10 +1,12 @@
 import type {
+  AlertChannel,
   AlertKind,
   AllocationStatus,
   AssetType,
   ChatRole,
   NotifyFrequency,
   ReportType,
+  TransactionType,
 } from "@/lib/finance/types";
 
 export const assetTypeLabels: Record<AssetType, string> = {
@@ -44,6 +46,21 @@ export const alertKindLabels: Record<AlertKind, string> = {
   allocation_deviation: "انحراف تخصیص",
   codal_notice: "گزارش کدال",
   fis_change: "تغییر ارزیابی",
+};
+
+export const alertChannelLabels: Record<AlertChannel, string> = {
+  in_app: "داخل برنامه",
+  bale: "بله",
+  push: "اعلان",
+};
+
+export const transactionTypeLabels: Record<TransactionType, string> = {
+  buy: "خرید",
+  sell: "فروش",
+  deposit: "واریز",
+  withdraw: "برداشت",
+  transfer: "انتقال",
+  adjust: "اصلاح میانگین",
 };
 
 export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {

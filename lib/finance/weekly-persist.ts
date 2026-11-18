@@ -167,7 +167,7 @@ export function parseWeeklyContent(value: unknown): WeeklyReportContent | null {
       previous_total_value: previousTotal,
       change_value: changeValue,
       change_percent: changePercent,
-      flow_value: typeof portfolio.flow_value === "number" && Number.isFinite(portfolio.flow_value) ? portfolio.flow_value : 0,
+      flow_value: portfolio && typeof portfolio.flow_value === "number" && Number.isFinite(portfolio.flow_value) ? portfolio.flow_value : 0,
     },
     assets,
     alerts,

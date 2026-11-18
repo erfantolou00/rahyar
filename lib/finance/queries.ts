@@ -22,7 +22,7 @@ export type LoadResult<T> =
   | { ok: true; data: T }
   | { ok: false; missingSchema: boolean };
 
-function missingSchema(error: { code?: string; message?: string } | null): boolean {
+export function missingSchema(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return (
     error.code === "PGRST205" ||
@@ -147,10 +147,13 @@ export async function loadPortfolio(
 
 export async function loadBasket(
   supabase: FinanceClient,
+  userId?: string,
 ): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
-  const assets = await readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true }));
+  let assetsQuery = supabase.from("assets").select("*").order("symbol", { ascending: true });
+  if (userId) assetsQuery = assetsQuery.eq("user_id", userId);
+  const assets = await readRows<Asset>(assetsQuery);
   if (!assets.ok) return assets;
-  const prices = await loadLatestPrices(supabase, assets.data);
+  const prices = await loadLatestPrices(supabase, assets.data, userId);
   const priceRows = prices.ok ? prices.data : [];
   const quotes = latestPrices(priceRows);
   const usd = latestQuote(priceRows, "USD");

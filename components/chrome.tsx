@@ -86,6 +86,12 @@ export function SubmitButton({ children }: { children: ReactNode }) {
   );
 }
 
+export const primaryControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground disabled:pointer-events-none disabled:opacity-50";
+
+export const quietControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg border border-line bg-card px-4 text-sm font-medium hover:bg-accent-soft disabled:pointer-events-none disabled:opacity-50";
+
 const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
@@ -93,6 +99,11 @@ const errorMessages: Record<string, string> = {
   ledger: "خرید و فروش برای وجه نقد ثبت نمی‌شود. برای آن از واریز و برداشت استفاده کنید.",
   cash: "حساب نقدی برای تسویه این معامله پیدا نشد.",
   empty: "برای اصلاح میانگین باید از این دارایی موجودی داشته باشید.",
+  unit: "مبنای قیمت این نماد با دارایی موجود یکی نیست.",
+  open: "این دارایی هنوز موجودی دارد. اول موجودی را صفر کنید.",
+  currency: "ارز حساب با دارایی یکی نیست.",
+  account: "حساب دفتر پیدا نشد.",
+  history: "این دارایی سابقه دارد و حذف نمی‌شود.",
   prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
   push_missing: "ابتدا اعلان مرورگر را فعال کنید یا شناسه گفتگوی بله را ذخیره کنید.",
   bale_token: "توکن بازوی بله در سرور تنظیم نشده است.",

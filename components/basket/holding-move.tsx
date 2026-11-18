@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { moveHolding } from "@/app/(dashboard)/basket/actions";
+import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 import { formatDollar, formatMoney, formatQuantity } from "@/lib/finance/format";
 import { normalizeNumericInput } from "@/lib/finance/parse";
 import {
@@ -90,10 +91,7 @@ export function HoldingMove({ row }: { row: PresentedRow }) {
           />
         </label>
       )}
-      <label className="grid gap-1.5 text-sm">
-        تاریخ
-        <input name="date" type="date" required defaultValue={todayInput()} dir="ltr" className="field-input text-left" />
-      </label>
+      <ShamsiDateField name="date" defaultValue={todayInput()} label="تاریخ" />
       {!cash && active !== "average" ? (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="settle_cash" value="1" />

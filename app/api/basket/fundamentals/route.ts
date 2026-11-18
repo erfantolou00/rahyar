@@ -19,7 +19,10 @@ export async function GET() {
   }
 
   const symbols = [...new Set((assets.data ?? []).map((row) => row.symbol.trim()).filter(Boolean))];
-  await Promise.all([ensureStockFundamentals(session.supabase), ensureMarketReports(session.supabase)]);
+  await Promise.all([
+    ensureStockFundamentals(session.supabase, session.userId),
+    ensureMarketReports(session.supabase, session.userId),
+  ]);
   const fundamentals = await loadStockFundamentals(session.supabase);
 
   return NextResponse.json({

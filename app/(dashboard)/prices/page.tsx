@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { PriceFeedsDialog } from "@/components/price-feeds-dialog";
 import { PricesBrowser } from "@/components/prices-browser";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { createPrice } from "@/app/(dashboard)/prices/actions";
 import { formatDollar, formatNumber, formatTimestamp, toNumber } from "@/lib/finance/format";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
+import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
 import { loadPricePage, parsePriceListQuery } from "@/lib/finance/prices/list";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetTypes } from "@/lib/finance/types";
+import { getAuthorizedSession } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "قیمت‌ها" };
@@ -19,6 +22,10 @@ export default async function PricesPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
+  const session = await getAuthorizedSession();
+  const feeds = session
+    ? await loadPriceFeeds(session.supabase, session.userId)
+    : { feeds: [], missingSchema: false };
   const query = parsePriceListQuery(params.q, params.page);
   const prices = await loadPricePage(supabase, query);
 
@@ -27,7 +34,12 @@ export default async function PricesPage({
       <PageHeader
         title="قیمت‌ها"
         description="هر قیمت متعلق به همین حساب است. آخرین قیمت هر نماد در ارزش دفتر استفاده می‌شود. اگر قیمت‌ها کهنه باشند، بعد از نمایش صفحه در پس‌زمینه تازه می‌شوند."
-        action={<RefreshPricesButton returnTo="/prices" />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <PriceFeedsDialog feeds={feeds.feeds} schemaMissing={feeds.missingSchema} />
+            <RefreshPricesButton returnTo="/prices" />
+          </div>
+        }
       />
       <Notice message={errorMessage(params.error)} />
       {!prices.ok ? (

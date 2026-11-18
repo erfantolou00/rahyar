@@ -4,7 +4,9 @@ import { useState } from "react";
 import { allocationClasses, suggestAllocationClass } from "@/lib/finance/allocation-class";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetFields, type AssetField, type AssetFormValues } from "@/lib/finance/basket-fields";
+import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 import { isLedgerAsset } from "@/lib/finance/holding-move";
+import { todayKey } from "@/lib/finance/holding-growth";
 import { priceUnits, type PriceUnit } from "@/lib/finance/prices/unit";
 import { assetTypes, type AssetType } from "@/lib/finance/types";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,7 @@ export function AssetFields({ values, mode }: { values: AssetFormValues; mode: "
           </p>
         </>
       ) : null}
+      {mode === "create" && !ledger ? <ShamsiDateField name="acquired_on" defaultValue={todayKey()} /> : null}
       {mode === "create" && ledger ? (
         <p className="text-xs leading-5 text-muted-foreground">
           دارایی با موجودی صفر ساخته می‌شود. تعداد را بعداً از خود کارت اضافه کنید.

@@ -28,7 +28,8 @@ type BasketError =
   | "currency"
   | "ledger"
   | "history"
-  | "account";
+  | "account"
+  | "empty";
 
 function fail(code: BasketError): never {
   redirect(`/basket?error=${code}`);
@@ -37,7 +38,11 @@ function fail(code: BasketError): never {
 function readAsset(formData: FormData) {
   const type = readString(formData, "type");
   const symbol = parseSymbol(readString(formData, "symbol"));
-  const quantity = parseRequiredNumber(readString(formData, "quantity"), { min: 0 });
+  const rawQuantity = readString(formData, "quantity");
+  const quantity =
+    rawQuantity.trim() === "" && isAssetType(type) && isLedgerAsset(type)
+      ? 0
+      : parseRequiredNumber(rawQuantity, { min: 0 });
   const priceUnit = readString(formData, "price_unit");
   const avgBuyPrice = parseOptionalNumber(readString(formData, "avg_buy_price"), { min: 0 });
   const manualValue = parseOptionalNumber(readString(formData, "manual_value"), { min: 0 });
@@ -100,6 +105,7 @@ function readIdempotency(formData: FormData): string | undefined {
 function postedError(error: { message?: string }): BasketError {
   const message = error.message ?? "";
   if (/oversell/i.test(message)) return "oversell";
+  if (/empty/i.test(message)) return "empty";
   if (/\bcash\b/i.test(message)) return "cash";
   if (/currency/i.test(message)) return "currency";
   if (/ledger/i.test(message)) return "ledger";
@@ -116,11 +122,12 @@ export async function createAsset(formData: FormData) {
   const { supabase } = await requireSession();
   const asset = readAsset(formData);
   const acquiredOn = parseIsoDate(readString(formData, "acquired_on"));
-  if (!asset || !acquiredOn) fail("invalid");
+  if (!asset) fail("invalid");
 
   const fee = readFee(formData);
   if (fee == null) fail("invalid");
   if (!isLedgerAsset(asset.type)) {
+    if (!acquiredOn) fail("invalid");
     const { error } = await supabase.from("assets").insert({ ...asset, acquired_on: acquiredOn });
     if (error) {
       console.error(error);
@@ -130,7 +137,21 @@ export async function createAsset(formData: FormData) {
     redirect("/basket");
   }
 
-  if (!(asset.quantity > 0)) fail("invalid");
+  if (!(asset.quantity > 0)) {
+    const { error } = await supabase.from("assets").insert({
+      ...asset,
+      quantity: 0,
+      avg_buy_price: null,
+      acquired_on: null,
+    });
+    if (error) {
+      console.error(error);
+      fail("save");
+    }
+    refresh();
+    redirect("/basket");
+  }
+  if (!acquiredOn) fail("invalid");
   const settle = readString(formData, "settle") === "yes";
   if (settle && asset.avg_buy_price == null) fail("invalid");
 
@@ -357,6 +378,82 @@ export async function createAccount(formData: FormData) {
   if (error) {
     console.error(error);
     fail("save");
+  }
+
+  refresh();
+  redirect("/basket");
+}
+
+export async function moveHolding(formData: FormData) {
+  const { supabase } = await requireSession();
+  const id = readString(formData, "id");
+  const move = readString(formData, "move");
+  const tradedOn = parseIsoDate(readString(formData, "date"));
+  const note = readString(formData, "note").trim();
+  if (!id || !tradedOn || (move !== "add" && move !== "remove" && move !== "average")) fail("invalid");
+
+  const current = await supabase.from("assets").select("id,type,quantity").eq("id", id).maybeSingle();
+  if (current.error || !current.data) {
+    console.error(current.error);
+    fail("save");
+  }
+  const asset = current.data;
+
+  if (move === "average") {
+    const price = parseRequiredNumber(readString(formData, "price"), { min: 0 });
+    if (price == null || !(price > 0)) fail("invalid");
+    if (isCashAsset(asset.type)) fail("ledger");
+    if (!(toNumber(asset.quantity) > 0)) fail("empty");
+    const { error } = await supabase.rpc("adjust_average", {
+      p_asset_id: id,
+      p_price: price,
+      p_traded_on: tradedOn,
+      p_note: note || undefined,
+    });
+    if (error) {
+      console.error(error);
+      fail(postedError(error));
+    }
+  } else {
+    const amount = parseRequiredNumber(readString(formData, "amount"), { min: 0 });
+    if (amount == null || !(amount > 0)) fail("invalid");
+    const settleCash = readString(formData, "settle_cash") === "1";
+    if (isCashAsset(asset.type)) {
+      const { error } = await supabase.rpc("post_transaction", {
+        p_asset_id: id,
+        p_type: move === "add" ? "deposit" : "withdraw",
+        p_qty: amount,
+        p_price: 0,
+        p_traded_on: tradedOn,
+        p_fee: 0,
+        p_settles_cash: false,
+        p_origin: "manual",
+        p_note: note || undefined,
+      });
+      if (error) {
+        console.error(error);
+        fail(postedError(error));
+      }
+    } else {
+      if (!isLedgerAsset(asset.type)) fail("invalid");
+      const price = parseRequiredNumber(readString(formData, "price"), { min: 0 });
+      if (price == null || !(price > 0)) fail("invalid");
+      const { error } = await supabase.rpc("post_transaction", {
+        p_asset_id: id,
+        p_type: move === "add" ? "buy" : "sell",
+        p_qty: amount,
+        p_price: price,
+        p_traded_on: tradedOn,
+        p_fee: 0,
+        p_settles_cash: settleCash,
+        p_origin: "manual",
+        p_note: note || undefined,
+      });
+      if (error) {
+        console.error(error);
+        fail(postedError(error));
+      }
+    }
   }
 
   refresh();

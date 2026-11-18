@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { FisManualForm } from "@/components/fis-manual-form";
 import { captureReport, createWeeklyReport } from "@/app/(dashboard)/reports/actions";
+import { parseStoredSheet, type ManualSheet } from "@/lib/finance/fis-manual";
 import { formatMoney, formatNumber, formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
-import { readRows } from "@/lib/finance/queries";
+import { loadBasket, loadStockFundamentals, readRows } from "@/lib/finance/queries";
+import { parseFisContent } from "@/lib/finance/publish-fis";
 import type { Report } from "@/lib/finance/types";
 import { formatWeekChange, parseWeeklyContent } from "@/lib/finance/weekly";
 import { createClient } from "@/lib/supabase/server";
@@ -18,9 +21,26 @@ export default async function ReportsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const reports = await readRows<Report>(
-    supabase.from("reports").select("*").order("created_at", { ascending: false }),
-  );
+  const [reports, basket, fundamentals] = await Promise.all([
+    readRows<Report>(supabase.from("reports").select("*").order("created_at", { ascending: false })),
+    loadBasket(supabase),
+    loadStockFundamentals(supabase),
+  ]);
+  const stocks = basket.ok
+    ? basket.data.rows
+        .filter((row) => row.type === "stock")
+        .map((row) => ({
+          symbol: row.name,
+          price: row.currentPrice,
+        }))
+    : [];
+  const sheets: Record<string, ManualSheet> = {};
+  if (fundamentals.ok) {
+    for (const row of fundamentals.data) {
+      const sheet = parseStoredSheet(row.manual_sheet);
+      if (sheet) sheets[row.symbol] = sheet;
+    }
+  }
 
   return (
     <div>
@@ -46,6 +66,7 @@ export default async function ReportsPage({
               </button>
             </form>
           </div>
+          <FisManualForm stocks={stocks} sheets={sheets} />
           {reports.data.length === 0 ? (
             <Panel>
               <EmptyState>گزارشی ذخیره نشده است.</EmptyState>
@@ -54,6 +75,7 @@ export default async function ReportsPage({
             <ul className="grid gap-3">
               {reports.data.map((report) => {
                 const weekly = parseWeeklyContent(report.content);
+                const fis = parseFisContent(report.content);
                 return (
                   <li key={report.id}>
                     <Link
@@ -74,6 +96,11 @@ export default async function ReportsPage({
                           {" · "}
                           <span className="numeric">{formatNumber(weekly.alerts.length, 0)}</span>
                           {" هشدار"}
+                        </p>
+                      ) : fis ? (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          ارزیابی <span className="numeric">{formatNumber(fis.stocks.length, 0)}</span>
+                          {" سهم"}
                         </p>
                       ) : (
                         <p className="mt-2 text-sm text-muted-foreground">تصویر ذخیره‌شده دفتر</p>

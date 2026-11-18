@@ -35,7 +35,7 @@ export async function createTransaction(formData: FormData) {
     p_qty: qty,
     p_price: price,
     p_traded_on: date,
-    p_note: note,
+    p_note: note ?? undefined,
   });
 
   if (error) {

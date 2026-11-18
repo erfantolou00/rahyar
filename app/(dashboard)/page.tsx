@@ -41,11 +41,13 @@ export default async function OverviewPage({
 
   if (!portfolio.ok && !preview) return <SchemaNotice missing={portfolio.missingSchema} />;
 
+  const claims = preview ? null : await supabase.auth.getClaims();
+  const userId = userIdFromClaims(claims?.data?.claims);
   const basket = portfolio.ok ? await loadBasket(supabase) : null;
   const deviations =
     portfolio.ok && allocationRows.ok ? deviationsForSnapshot(portfolio.data, allocationRows.data) : [];
-  const canSync = portfolio.ok && allocationRows.ok;
-  const saved = canSync ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
+  const canSync = portfolio.ok && allocationRows.ok && Boolean(userId);
+  const saved = canSync && userId ? await syncAllocationDeviationAlerts(supabase, userId, deviations) : null;
   const saveState = !canSync || saved == null || saved.ok
     ? "saved"
     : saved.missingSchema
@@ -60,8 +62,6 @@ export default async function OverviewPage({
   const symbols = new Map(
     (portfolio.ok ? portfolio.data.holdings : []).map((holding) => [holding.id, holding.symbol]),
   );
-  const claims = portfolio.ok && !preview && !emptyBook ? await supabase.auth.getClaims() : null;
-  const userId = userIdFromClaims(claims?.data?.claims);
   const today = todayKey();
   const book =
     userId && basket?.ok && basket.data.rows.length > 0

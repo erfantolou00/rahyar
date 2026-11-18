@@ -14,7 +14,9 @@ export const tradeSides = ["buy", "sell"] as const;
 
 export const accountKinds = ["brokerage", "bullion", "fx", "wallet"] as const;
 
-export const transactionTypes = ["buy", "sell", "deposit", "withdraw", "transfer"] as const;
+export const transactionTypes = ["buy", "sell", "deposit", "withdraw", "transfer", "adjust"] as const;
+
+export const entryTypes = ["buy", "sell", "deposit", "withdraw"] as const;
 
 export const reportTypes = ["daily", "weekly", "event", "period"] as const;
 
@@ -332,4 +334,23 @@ export type PortfolioSnapshot = {
   totalValue: number;
   holdings: HoldingSnapshot[];
   byType: TypeSnapshot[];
+};
+
+export type PortfolioSnapshotRow = {
+  id: string;
+  user_id: string;
+  day: string;
+  total_value: Numeric;
+  captured_at: string;
+};
+
+export type HoldingSnapshotRow = {
+  id: string;
+  user_id: string;
+  asset_id: string;
+  day: string;
+  quantity: Numeric;
+  price: Numeric | null;
+  value: Numeric;
+  captured_at: string;
 };

@@ -3,10 +3,11 @@ import { readMarketReport } from "@/lib/finance/prices/market-report";
 import { priceAge } from "@/lib/finance/prices/age";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { formatDollar, formatMoney, formatNumber, formatPercent, formatQuantity, plainNumber, toNumber } from "@/lib/finance/format";
+import { formatJalali } from "@/lib/finance/jalali";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
 import type { AssetFormValues, BasketColumnKey } from "@/lib/finance/basket-fields";
 import type { BasketRow, BasketSummary } from "@/lib/finance/portfolio";
-import { latestQuote, liveSymbols, type LiveSymbol } from "@/lib/finance/prices/match";
+import { latestQuote, liveSymbolLabels, type LiveSymbol } from "@/lib/finance/prices/match";
 import type { Numeric, Price, StockFundamentals } from "@/lib/finance/types";
 
 export type ValueTone = "up" | "down" | "flat" | "empty";
@@ -28,11 +29,7 @@ export type PresentedMark = {
   stale: boolean;
 };
 
-const markTitles: Record<LiveSymbol, string> = {
-  USD: "دلار",
-  GOLD18: "طلای ۱۸ عیار",
-  BTC: "بیت‌کوین",
-};
+const shownMarks = ["USD", "GOLD18", "BTC"] as const satisfies readonly LiveSymbol[];
 
 export type PresentedReport = {
   daily: string;
@@ -214,11 +211,11 @@ export function presentFundamentals(
 export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[] {
   const usd = latestQuote(prices, "USD");
   const usdRial = usd ? toNumberPrice(usd.price) : null;
-  return liveSymbols.map((symbol) => {
+  return shownMarks.map((symbol) => {
     const quote = latestQuote(prices, symbol);
     if (!quote) {
       return {
-        title: markTitles[symbol],
+        title: liveSymbolLabels[symbol],
         price: "—",
         updatedLabel: "هنوز قیمتی دریافت نشده",
         stale: true,
@@ -228,7 +225,7 @@ export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[]
     const amount = toNumberPrice(quote.price);
     const shown = symbol === "BTC" ? btcInUsdt(amount, usdRial) : amount;
     return {
-      title: markTitles[symbol],
+      title: liveSymbolLabels[symbol],
       price: shown == null ? "—" : symbol === "BTC" ? formatDollar(shown) : formatMoney(shown),
       updatedLabel: age.label,
       stale: age.stale,
@@ -273,6 +270,7 @@ function presentRow(row: BasketRow): PresentedRow {
       type: assetTypeLabels[row.type],
       class: classLabel(row),
       quantity: formatQuantity(row.quantity),
+      acquiredOn: formatJalali(row.acquiredOn),
       avgBuyPrice: formatUnitPrice(buy, unit),
       currentPrice: formatUnitPrice(current, unit),
       currentValue: money(row.currentValue),
@@ -285,6 +283,7 @@ function presentRow(row: BasketRow): PresentedRow {
       type: assetTypeLabels[row.type],
       class: classLabel(row),
       quantity: row.quantity,
+      acquiredOn: row.acquiredOn ?? null,
       avgBuyPrice: buy,
       currentPrice: current,
       currentValue: row.currentValue,

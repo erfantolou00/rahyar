@@ -141,7 +141,7 @@ export function trendVerdict(quarters: DiscreteQuarter[], inflationPercent: numb
       priorPeriods: [priorPrevious.period, priorLatest.period],
     };
   }
-  const sum = (scores as TrendSignalScore[]).reduce((total, score) => total + score, 0);
+  const sum = (scores as TrendSignalScore[]).reduce<number>((total, score) => total + score, 0);
   const verdict = sum >= 2 ? "improving" : sum <= -2 ? "worse" : "stable";
   return {
     verdict,

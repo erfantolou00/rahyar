@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { BasketBoard } from "@/components/basket/basket-board";
+import { LedgerPanel } from "@/components/basket/ledger-panel";
+import { RebuildHistoryButton } from "@/components/basket/rebuild-history-button";
 import type { HoldingChart } from "@/components/basket/asset-detail-dialog";
-import { Notice, PageHeader, SchemaNotice, errorMessage } from "@/components/chrome";
-import { RefreshPricesButton } from "@/components/refresh-prices-button";
+import { Notice, Panel, SchemaNotice, errorMessage } from "@/components/chrome";
 import { presentBasket, presentClassWeights, presentMarks } from "@/lib/finance/basket-view";
 import { holdingChart } from "@/lib/finance/book-history";
-import { formatDay } from "@/lib/finance/format";
+import { formatDay, toNumber } from "@/lib/finance/format";
 import { todayKey } from "@/lib/finance/holding-growth";
-import { loadBasket, loadLivePrices } from "@/lib/finance/queries";
+import { loadBasket, loadLedger, loadLivePrices } from "@/lib/finance/queries";
 import { syncBookClose } from "@/lib/finance/snapshots";
 import { decorateSlices } from "@/lib/overview/view";
 import { userIdFromClaims } from "@/lib/supabase/env";
@@ -22,7 +23,11 @@ export default async function BasketPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const [basket, livePrices] = await Promise.all([loadBasket(supabase), loadLivePrices(supabase)]);
+  const [basket, livePrices, ledger] = await Promise.all([
+    loadBasket(supabase),
+    loadLivePrices(supabase),
+    loadLedger(supabase),
+  ]);
 
   if (!basket.ok) return <SchemaNotice missing={basket.missingSchema} />;
 
@@ -60,6 +65,31 @@ export default async function BasketPage({
         totalPercent={view.totalPercent}
         totalTone={view.totalTone}
       />
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <LedgerPanel
+          ready={ledger.ready}
+          accounts={ledger.accounts.map((account) => ({
+            id: account.id,
+            name: account.name,
+            kind: account.kind,
+            currency: account.currency,
+          }))}
+          positions={ledger.positions.map((position) => ({
+            accountId: position.account_id,
+            assetId: position.asset_id,
+            name: basket.data.rows.find((row) => row.id === position.asset_id)?.name ?? "",
+            quantity: toNumber(position.quantity),
+          }))}
+          holdings={basket.data.rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            currency: row.priceUnit === "usd" ? "usd" : "rial",
+          }))}
+        />
+        <Panel title="تاریخچه صورت‌ها">
+          <RebuildHistoryButton />
+        </Panel>
+      </div>
     </div>
   );
 }
