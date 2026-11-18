@@ -1,4 +1,5 @@
 import type {
+  AccountKind,
   Allocation,
   Alert,
   AlertFrequency,
@@ -10,17 +11,26 @@ import type {
   ChatRole,
   Json,
   NotifyFrequency,
+  LedgerAccount,
+  LedgerPosition,
   Numeric,
   Price,
+  PriceDay,
+  PriceFeedRow,
   PriceUnit,
   Report,
   HoldingSnapshotRow,
   MacroIndicatorRow,
   PortfolioSnapshotRow,
   StockFundamentals,
+  StockMonthly,
+  StockPeriod,
+  StockScore,
   ReportType,
   Transaction,
   TransactionType,
+  Trade,
+  TradeSide,
   UserSettings,
 } from "@/lib/finance/types";
 
@@ -43,10 +53,39 @@ export type Database = {
           price_unit?: PriceUnit;
           allocation_class?: AssetType;
           allocation_class_source?: "auto" | "manual";
+          acquired_on?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Asset>;
+        Relationships: [];
+      };
+      accounts: {
+        Row: LedgerAccount;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          name: string;
+          kind: AccountKind;
+          currency: PriceUnit;
+          created_at?: string;
+        };
+        Update: Partial<LedgerAccount>;
+        Relationships: [];
+      };
+      positions: {
+        Row: LedgerPosition;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          account_id: string;
+          asset_id: string;
+          quantity?: Numeric;
+          avg_buy_price?: Numeric | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<LedgerPosition>;
         Relationships: [];
       };
       transactions: {
@@ -55,22 +94,45 @@ export type Database = {
           id?: string;
           user_id?: string;
           asset_id: string;
+          account_id: string;
+          counter_account_id?: string | null;
+          cash_asset_id?: string | null;
           type: TransactionType;
           qty: Numeric;
-          price: Numeric;
+          price?: Numeric | null;
+          fee?: Numeric;
+          price_unit: PriceUnit;
+          fx_rate?: Numeric | null;
+          settles_cash?: boolean;
+          origin?: Transaction["origin"];
+          idempotency_key?: string | null;
           date: string;
           note?: string | null;
+          created_at?: string;
         };
         Update: Partial<Transaction>;
-        Relationships: [
-          {
-            foreignKeyName: "transactions_asset_id_fkey";
-            columns: ["asset_id"];
-            isOneToOne: false;
-            referencedRelation: "assets";
-            referencedColumns: ["id"];
-          },
-        ];
+        Relationships: [];
+      };
+      trades: {
+        Row: Trade;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          asset_id?: string | null;
+          asset_type: AssetType;
+          symbol: string;
+          side: TradeSide;
+          quantity: Numeric;
+          price?: Numeric | null;
+          fee?: Numeric;
+          price_unit?: PriceUnit;
+          traded_on: string;
+          settles_cash?: boolean;
+          cash_asset_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Trade>;
+        Relationships: [];
       };
       prices: {
         Row: Price;
@@ -84,6 +146,34 @@ export type Database = {
           timestamp?: string;
         };
         Update: Partial<Price>;
+        Relationships: [];
+      };
+      price_feeds: {
+        Row: PriceFeedRow;
+        Insert: {
+          user_id?: string;
+          asset_type: AssetType;
+          symbol: string;
+          price_enabled?: boolean;
+          codal_enabled?: boolean;
+          added?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<PriceFeedRow>;
+        Relationships: [];
+      };
+      price_days: {
+        Row: PriceDay;
+        Insert: {
+          user_id: string;
+          asset_type: AssetType;
+          symbol: string;
+          day: string;
+          price: Numeric;
+          source: string;
+          quoted_at: string;
+        };
+        Update: Partial<PriceDay>;
         Relationships: [];
       };
       allocations: {
@@ -186,9 +276,63 @@ export type Database = {
           source: string;
           shape_error?: string | null;
           market_report?: Json;
+          manual_sheet?: Json;
           fetched_at?: string;
         };
         Update: Partial<StockFundamentals>;
+        Relationships: [];
+      };
+      stock_periods: {
+        Row: StockPeriod;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          period: string;
+          months: number;
+          kind: StockPeriod["kind"];
+          tracing_no: string;
+          revision_of?: string | null;
+          figures: Json;
+          source: string;
+          fetched_at?: string;
+        };
+        Update: Partial<StockPeriod>;
+        Relationships: [];
+      };
+      stock_monthly: {
+        Row: StockMonthly;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          period: string;
+          sales_value?: Numeric | null;
+          sales_qty?: Numeric | null;
+          production_qty?: Numeric | null;
+          avg_rate?: Numeric | null;
+          tracing_no: string;
+          source: string;
+        };
+        Update: Partial<StockMonthly>;
+        Relationships: [];
+      };
+      stock_scores: {
+        Row: StockScore;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          symbol: string;
+          as_of?: string;
+          trigger: StockScore["trigger"];
+          score?: Numeric | null;
+          status: string;
+          model_version: string;
+          factors: Json;
+          observation: Json;
+          forward_pe?: Numeric | null;
+        };
+        Update: Partial<StockScore>;
         Relationships: [];
       };
       macro_indicators: {
@@ -253,8 +397,32 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      latest_prices: {
+        Row: Price;
+        Relationships: [];
+      };
+    };
     Functions: {
+      post_transaction: {
+        Args: {
+          p_asset_id: string;
+          p_type: TransactionType;
+          p_qty: number;
+          p_traded_on: string;
+          p_account_id?: string;
+          p_price?: number | null;
+          p_fee?: number;
+          p_settles_cash?: boolean;
+          p_cash_asset_id?: string;
+          p_counter_account_id?: string;
+          p_origin?: Transaction["origin"];
+          p_fx_rate?: number;
+          p_note?: string;
+          p_idempotency_key?: string;
+        };
+        Returns: Transaction;
+      };
       replace_allocation: {
         Args: {
           p_asset_type: AssetType;
@@ -263,18 +431,6 @@ export type Database = {
           p_formula_version: string;
         };
         Returns: Allocation;
-      };
-      post_transaction: {
-        Args: {
-          p_asset_id: string;
-          p_type: TransactionType;
-          p_qty: number;
-          p_traded_on: string;
-          p_price?: number;
-          p_note?: string | null;
-          p_settles_cash?: boolean;
-        };
-        Returns: Transaction;
       };
       adjust_average: {
         Args: {
@@ -291,8 +447,10 @@ export type Database = {
       };
     };
     Enums: {
+      account_kind: AccountKind;
       asset_type: AssetType;
       transaction_type: TransactionType;
+      trade_side: TradeSide;
       report_type: ReportType;
       chat_role: ChatRole;
     };

@@ -1,36 +1,61 @@
 # رهیار
 
-دستیار مالی شخصی. Next.js (App Router) با ورود تک‌کاربره و Postgres روی Supabase.
+دستیار مالی شخصی برای یک نفر. ارزش سبد، دفتر خرید و فروش، قیمت، تخصیص، هشدار، گزارش هفتگی و امتیاز بنیادی سهام را در یک برنامه نگه می‌دارد. معامله را خودش ثبت نمی‌کند.
+
+رابط فارسی و راست‌به‌چپ است. Next.js ۱۶ (App Router) روی Vercel، داده در Postgres با Supabase و Row Level Security.
+
+## صفحه‌ها
+
+| مسیر | کار |
+| --- | --- |
+| `/` | ارزش دفتر، فاصله از میانگین خرید، طبقه‌های بیرون از بازه |
+| `/basket` | دارایی، حساب، خرید، فروش و انتقال. موجودی فقط از دفتر می‌آید |
+| `/reports` | گزارش هفتگی، تصویر لحظه‌ای دفتر، و گزارش بنیادی سهام |
+| `/chat` | گفتگو روی عددهای ذخیره‌شدهٔ خود سبد |
+| `/prices` | قیمت‌های ذخیره‌شده و خوراک هر نماد |
+| `/allocations` | وزن هدف هر طبقه |
+| `/alerts` | هشدار انحراف و تحویل بله یا اعلان مرورگر |
+| `/security` | رمز یک‌بارمصرف |
+| `/login` | ورود همان یک ایمیل مجاز |
+
+## دفتر و امتیاز سهام
+
+دفتر و امتیاز بنیادی دو لایه‌اند.
+
+دفتر، حساب و موجودی و میانگین خرید را با تابع `post_transaction` عوض می‌کند. خرید، فروش و انتقال از سبد، بعد از تأیید خود کاربر، از همین تابع می‌گذرند. طلا، سکه، دلار، صندوق، رمزارز، مسکن و وام داخل امتیاز سهام نیستند.
+
+امتیاز بنیادی فقط برای سهام بورسی است و پیشنهاد است. گزارش را در `reports` با نوع `period` ذخیره می‌کند و سفارشی نمی‌سازد. شناسهٔ کالیبراسیون `rahyar-fis-proposal-2026-10-21` است. جزئیات آستانه‌ها در `docs/fis-stock-system.txt` است.
+
+قبل از ساخت گزارش، منبع صورت‌ها انتخاب می‌شود: کدال یا رهاورد ۳۶۵. خانهٔ خالی فرم از همان منبع پر می‌شود. عددی که در فرم باشد جای همان قلم می‌نشیند. مبلغ صورت به میلیون ریال است و قیمت و سود هر سهم به ریال.
 
 ## راه‌اندازی
 
-1. `.env.example` را به `.env.local` کپی کنید و این سه مقدار را پر کنید:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `ALLOWED_USER_EMAIL` (همان ایمیلی که در مرحلهٔ بعد می‌سازید)
-2. migration را اجرا کنید (پایین).
-3. در داشبورد Supabase ثبت‌نام عمومی را خاموش کنید: Authentication → Sign In / Providers → Email → غیرفعال کردن Allow new users to sign up.
-4. همان‌جا فقط یک کاربر بسازید: Authentication → Users → Add user. گزینهٔ Auto Confirm را روشن بگذارید.
-5. اگر بعداً رمز یک‌بارمصرف می‌خواهید، Authentication → Multi-Factor → TOTP را فعال کنید. صفحهٔ «امنیت» داخل برنامه همان عامل را ثبت می‌کند.
-6. `npm run dev`
+1. `.env.example` را به `.env.local` کپی کنید. رازها را فقط آنجا بگذارید.
+2. در Supabase ثبت‌نام عمومی را خاموش کنید: Authentication → Sign In / Providers → Email → خاموش کردن Allow new users to sign up.
+3. یک کاربر بسازید: Authentication → Users → Add user، با Auto Confirm. ایمیل همان `ALLOWED_USER_EMAIL` باشد.
+4. برای رمز یک‌بارمصرف: Authentication → Multi-Factor → TOTP. ثبت عامل از صفحهٔ امنیت برنامه است.
+5. migrationها را بفرستید (پایین).
+6. `npm run dev` و سپس `http://localhost:3000`.
 
-کلید `service_role` را در محیط مرورگر نگذارید. این برنامه با کلید عمومی و نشست کاربر کار می‌کند و دسترسی را Row Level Security محدود می‌کند.
+کلید `service_role` و `SUPABASE_SECRET_KEY` را در مرورگر نگذارید. صفحه با کلید عمومی و نشست کاربر کار می‌کند و RLS دسترسی را محدود می‌کند. تریگر پایگاه هم کاربر دوم را نمی‌سازد.
 
-## اجرای migration
+## متغیرهای محیط
 
-فایل:
+| نام | کجا |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | نشانی پروژه |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | کلید عمومی |
+| `ALLOWED_USER_EMAIL` | تنها ایمیل مجاز ورود. فقط سرور |
+| `SUPABASE_SECRET_KEY` | کار زمان‌بند و خواندن مالک. فقط سرور |
+| `CRON_SECRET` | `Authorization: Bearer` برای `/api/cron/*` |
+| `BALE_BOT_TOKEN` | ربات بله |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` و `VAPID_PRIVATE_KEY` و `VAPID_SUBJECT` | اعلان مرورگر |
+| `FRED_API_KEY` | تورم آمریکا، نرخ بهره و شاخص دلار |
+| `GAPGPT_API_KEY` و `GAPGPT_BASE_URL` و `GAPGPT_MODEL` | گفتگو و تفسیر گزارش هفتگی |
 
-`supabase/migrations/20260927134917_init_finance_schema.sql`
+## migration
 
-و برای ارزش دستی سبد:
-
-`supabase/migrations/20260927163410_add_asset_manual_value.sql`
-
-این دو فایل را یک‌بار اجرا کنید. فایل اول جدول‌ها، RLS، تریگر تک‌کاربره و تابع `replace_allocation` را می‌سازد. فایل دوم ستون ارزش دستی را به دارایی‌ها اضافه می‌کند. `db push` هر دو را به ترتیب اعمال می‌کند.
-
-### روش ترجیحی: CLI، با تاریخچهٔ migration
-
-از ریشهٔ پروژه:
+همهٔ فایل‌های `supabase/migrations` به ترتیب نام اجرا می‌شوند. `db push` تاریخچه را هم ثبت می‌کند.
 
 ```bash
 npx supabase login
@@ -38,19 +63,42 @@ npx supabase link --project-ref <project-ref>
 npx supabase db push
 ```
 
-`project-ref` همان شناسهٔ کوتاه در URL پروژه است (`https://supabase.com/dashboard/project/<project-ref>`).
+`project-ref` شناسهٔ کوتاه داخل `https://supabase.com/dashboard/project/<project-ref>` است.
 
-`db push` همین فایل را روی پایگاه راه دور اجرا می‌کند و در جدول تاریخچه ثبت می‌کند. دوباره اجرا کردنش لازم نیست.
-
-### روش جایگزین: SQL Editor
-
-1. Supabase Dashboard → SQL Editor → New query
-2. محتوای فایل migration را بچسبانید و Run کنید.
-
-اگر بعداً `db push` هم بزنید، همان فایل دوباره اجرا می‌شود و به‌خاطر وجود جدول‌ها خطا می‌دهد. در آن حالت تاریخچه را با نسخهٔ همین فایل هم‌تراز کنید:
+اگر فایلی را قبلاً در SQL Editor اجرا کرده‌اید و `db push` به‌خاطر وجود شیء خطا داد، همان نسخه را در تاریخچه علامت بزنید:
 
 ```bash
-npx supabase migration repair 20260927134917 --status applied --linked
+npx supabase migration repair <version> --status applied --linked
 ```
 
-`config.toml` فقط برای Supabase محلی است (`npx supabase start`). خاموش بودن ثبت‌نام در آن فایل، پروژهٔ میزبانی‌شده را عوض نمی‌کند؛ آن را در داشبورد هم خاموش کنید. تریگر دیتابیس در هر دو حالت جلوی ساخت کاربر دوم را می‌گیرد.
+`supabase/config.toml` فقط برای Supabase محلی است (`npx supabase start`). خاموش بودن ثبت‌نام در آن فایل، پروژهٔ میزبانی‌شده را عوض نمی‌کند.
+
+## دستورها
+
+```bash
+npm run dev
+npm test
+npm run lint
+npm run build
+```
+
+آزمون‌ها با Vitest و بدون شبکه هستند. پوستهٔ ویندوز این پروژه PowerShell است و `&&` را نمی‌پذیرد.
+
+## زمان‌بند
+
+`vercel.json` مسیرهای cron را با ساعت UTC صدا می‌زند. ساعت تهران در این فصل UTC+3:30 است.
+
+| مسیر | تقریباً به وقت تهران |
+| --- | --- |
+| `/api/cron/prices` | هر ۱۵ دقیقه از ۹ تا ۱۲:۴۵، شنبه تا چهارشنبه؛ یک‌بار هم ۱۹:۳۰ هر شب |
+| `/api/cron/codal` | هر روز ۱۳:۳۰ |
+| `/api/cron/weekly-report` | جمعه ۲۰:۰۰ |
+| `/api/cron/macro` | دوشنبه ۱۶:۳۰ |
+
+هر چهار مسیر `CRON_SECRET` می‌خواهند.
+
+## دادهٔ بیرونی
+
+قیمت سهام از رهآورد ۳۶۵ و در صورت نیاز از مسیرهای دیگر خوراک. طلا و ارز از TGJU. بیت‌کوین از صرافی. شاخص‌های کلان از FRED. صورت مالی از کدال (نامهٔ ن-۱۰، فعالیت ماهانهٔ ن-۳۰، سود تقسیمی ن-۵۲ و ن-۵۱ و در نبودشان ن-۱۳) یا از صورت سود و زیان و ترازنامهٔ رهاورد ۳۶۵.
+
+کدال از برخی شبکه‌ها تایم‌اوت می‌شود. شکست یک نامه نباید کل گزارش را ۵۰۰ کند.

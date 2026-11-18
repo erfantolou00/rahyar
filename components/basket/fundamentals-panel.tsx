@@ -1,13 +1,16 @@
 import { SchemaNotice } from "@/components/chrome";
+import { RebuildHistoryButton } from "@/components/basket/rebuild-history-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PresentedFundamental, ValueTone } from "@/lib/finance/basket-view";
 
 export function FundamentalsPanel({
   rows,
   schemaIssue,
+  historyMissing,
 }: {
   rows: PresentedFundamental[];
   schemaIssue: boolean | null;
+  historyMissing: boolean;
 }) {
   if (schemaIssue != null) return <SchemaNotice missing={schemaIssue} />;
   if (rows.length === 0) {
@@ -22,6 +25,8 @@ export function FundamentalsPanel({
 
   return (
     <div className="grid gap-3">
+      <RebuildHistoryButton />
+      {historyMissing ? <p className="text-sm text-warn">جدول تاریخچه هنوز در پایگاه نیست.</p> : null}
       {rows.map((row) => (
         <Card key={row.symbol}>
           <CardHeader>
@@ -82,6 +87,42 @@ export function FundamentalsPanel({
               </div>
             ) : null}
             {row.shapeError ? <p className="text-sm leading-7 text-warn">{row.shapeError}</p> : null}
+            <div className="grid gap-2">
+              <p className="text-sm font-medium">
+                تاریخچهٔ ذخیره‌شده: <span className="numeric">{row.historySummary}</span>
+              </p>
+              {row.historyPeriods.length > 0 ? (
+                <ul className="grid gap-1">
+                  {row.historyPeriods.map((item) => (
+                    <li key={item.tracingNo} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                      <span className="numeric text-muted-foreground">{item.period}</span>
+                      <span>
+                        {item.kindLabel}
+                        {item.revisionOf ? (
+                          <>
+                            {" "}
+                            · اصلاحیهٔ <span className="numeric">{item.revisionOf}</span>
+                          </>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {row.historyMonths.length > 0 ? (
+                <div>
+                  <p className="mb-2 text-sm text-muted-foreground">فروش ماهانهٔ ذخیره‌شده (میلیون ریال)</p>
+                  <ul className="grid gap-1">
+                    {row.historyMonths.map((point) => (
+                      <li key={point.period} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="numeric text-muted-foreground">{point.period}</span>
+                        <span className="numeric">{point.sales}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
             <p className="text-xs text-muted-foreground">{row.fetchedLabel}</p>
           </CardContent>
         </Card>

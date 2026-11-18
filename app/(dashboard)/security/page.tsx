@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Notice, PageHeader, Panel, errorMessage } from "@/components/chrome";
+import { Notice, PageHeader, Panel, dangerControlClass, errorMessage } from "@/components/chrome";
 import { MfaEnrollForm } from "@/components/mfa-enroll-form";
 import { unenrollMfa } from "@/app/(dashboard)/security/actions";
 import { requireSession } from "@/lib/supabase/auth";
@@ -47,7 +47,7 @@ export default async function SecurityPage({
                   <span>{factor.friendly_name || "رمز یک‌بارمصرف"}</span>
                   <form action={unenrollMfa}>
                     <input type="hidden" name="factorId" value={factor.id} />
-                    <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs">
+                    <button type="submit" className={dangerControlClass}>
                       غیرفعال‌سازی
                     </button>
                   </form>

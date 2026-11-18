@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { verifyMfa, type MfaState } from "@/app/login/mfa/actions";
+import { primaryControlClass } from "@/components/chrome";
 
 const initialState: MfaState = null;
 
@@ -10,7 +11,7 @@ export function MfaChallengeForm() {
 
   return (
     <form action={action} className="grid gap-4">
-      <label className="grid gap-1.5 text-sm">
+      <label className="grid gap-2 text-sm">
         <span>رمز یک‌بارمصرف</span>
         <input
           name="code"
@@ -28,7 +29,7 @@ export function MfaChallengeForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+        className={primaryControlClass}
       >
         {pending ? "در حال بررسی..." : "تأیید"}
       </button>

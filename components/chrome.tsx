@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
 
+export const primaryControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors duration-150 outline-none hover:bg-primary/80 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
+export const quietControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg border border-line bg-card px-4 text-sm font-medium text-foreground transition-colors duration-150 outline-none hover:bg-accent-soft focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
+export const dangerControlClass =
+  "inline-flex h-11 items-center justify-center rounded-lg border border-destructive/30 bg-destructive/10 px-4 text-sm font-medium text-destructive transition-colors duration-150 outline-none hover:bg-destructive/20 focus-visible:ring-3 focus-visible:ring-destructive/30 disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none";
+
 export function PageHeader({
   title,
   description,
@@ -11,11 +20,11 @@ export function PageHeader({
 }) {
   return (
     <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">{description}</p> : null}
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+        {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </header>
   );
 }
@@ -28,8 +37,8 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="surface-card overflow-hidden">
-      {title ? <h2 className="mb-4 text-base font-semibold">{title}</h2> : null}
+    <section className="surface overflow-hidden p-4">
+      {title ? <h2 className="mb-4 border-b border-line pb-3 text-base font-semibold text-foreground">{title}</h2> : null}
       {children}
     </section>
   );
@@ -38,7 +47,7 @@ export function Panel({
 export function Notice({ message }: { message?: string | null }) {
   if (!message) return null;
   return (
-    <p className="mb-4 rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-sm text-danger">
+    <p role="alert" className="mb-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
       {message}
     </p>
   );
@@ -68,7 +77,7 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-1.5 text-sm">
+    <label className="grid gap-2 text-sm">
       <span>{label}</span>
       {children}
     </label>
@@ -77,10 +86,7 @@ export function Field({
 
 export function SubmitButton({ children }: { children: ReactNode }) {
   return (
-    <button
-      type="submit"
-      className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium transition hover:opacity-90"
-    >
+    <button type="submit" className={primaryControlClass}>
       {children}
     </button>
   );
@@ -88,11 +94,17 @@ export function SubmitButton({ children }: { children: ReactNode }) {
 
 const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
+  unit: "این سهم یا صندوق از قبل با مبنای قیمت دیگری ثبت شده است.",
+  oversell: "تعداد از ماندهٔ همین حساب بیشتر است.",
+  open: "این دارایی هنوز مانده دارد. اول فروش یا برداشت را ثبت کنید.",
+  cash: "نقد همین حساب برای این معامله کافی نیست، یا دارایی نقد این ارز بیش از یکی است.",
+  currency: "ارز حساب با مبنای قیمت دارایی یکی نیست.",
+  ledger: "این عمل برای این نوع دارایی در دفتر معاملات مجاز نیست.",
+  account: "حساب معاملات پیدا نشد.",
+  history: "سابقه این دارایی در دفتر مانده است و حذف نمی‌شود.",
+  empty: "برای اصلاح میانگین باید موجودی داشته باشید.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
-  oversell: "مقدار فروش از موجودی همین دارایی بیشتر است.",
-  ledger: "خرید و فروش برای وجه نقد ثبت نمی‌شود. برای آن از واریز و برداشت استفاده کنید.",
-  cash: "حساب نقدی برای تسویه این معامله پیدا نشد.",
-  empty: "برای اصلاح میانگین باید از این دارایی موجودی داشته باشید.",
+  symbol: "این سهم در سبد مانده ندارد.",
   prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
   push_missing: "ابتدا اعلان مرورگر را فعال کنید یا شناسه گفتگوی بله را ذخیره کنید.",
   bale_token: "توکن بازوی بله در سرور تنظیم نشده است.",

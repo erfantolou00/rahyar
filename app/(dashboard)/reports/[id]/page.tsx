@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { interpretStatusMessage } from "@/lib/ai/interpret-weekly";
 import { PageHeader, Panel, SchemaNotice } from "@/components/chrome";
 import { InterpretReportButton } from "@/components/interpret-report-button";
+import { FisReportView } from "@/components/fis-report-view";
 import { WeeklyReportView } from "@/components/weekly-report-view";
+import { parseFisContent } from "@/lib/finance/publish-fis";
 import { formatTimestamp } from "@/lib/finance/format";
 import { reportTypeLabels } from "@/lib/finance/labels";
 import type { Report } from "@/lib/finance/types";
@@ -28,7 +30,7 @@ export default async function ReportDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ delivery?: string; interpret?: string }>;
+  searchParams: Promise<{ delivery?: string; interpret?: string; sheet?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -45,8 +47,12 @@ export default async function ReportDetailPage({
 
   const report = data as Report;
   const weekly = parseWeeklyContent(report.content);
+  const fis = parseFisContent(report.content);
   const note = deliveryNote(query.delivery);
   const interpretNote = interpretStatusMessage(query.interpret);
+  const sheetNote = query.sheet === "missing"
+    ? "گزارش با عددهای همین فرم ساخته شد، ولی برای دفعه بعد ذخیره نشد. در Supabase فایل manual_sheet را اجرا کنید."
+    : null;
 
   return (
     <div>
@@ -54,19 +60,25 @@ export default async function ReportDetailPage({
         title={`${reportTypeLabels[report.type]} · ${formatTimestamp(report.created_at)}`}
         description="عددهای همین گزارش همان‌طور که ذخیره شده‌اند نشان داده می‌شوند."
         action={
-          <Link href="/reports" className="text-sm text-muted-foreground underline underline-offset-4">
+          <Link
+            href="/reports"
+            className="inline-flex h-11 items-center text-sm text-muted-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
             بازگشت به فهرست
           </Link>
         }
       />
       {note ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{note}</p> : null}
+      {sheetNote ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{sheetNote}</p> : null}
       {interpretNote ? <p className="mb-4 text-sm leading-7 text-danger">{interpretNote}</p> : null}
       {weekly && !weekly.commentary ? <div className="mb-4"><InterpretReportButton reportId={report.id} /></div> : null}
       {report.type === "weekly" && weekly ? (
         <WeeklyReportView content={weekly} />
+      ) : fis ? (
+        <FisReportView content={fis} />
       ) : (
         <Panel title="محتوا">
-          <pre className="numeric overflow-x-auto text-left text-xs leading-6" dir="ltr">
+          <pre className="numeric overflow-x-auto text-start text-xs leading-6" dir="ltr">
             {JSON.stringify(report.content, null, 2)}
           </pre>
         </Panel>

@@ -20,20 +20,28 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-full max-w-md flex-col justify-center px-4 py-16">
-      <p className="text-sm text-muted-foreground">دستیار مالی شخصی</p>
-      <h1 className="mt-1 text-3xl font-semibold">ورود به رهیار</h1>
-      <p className="mt-3 text-sm leading-7 text-muted-foreground">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-16">
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="grid size-11 place-items-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
+          ر
+        </span>
+        <div>
+          <p className="text-xs text-muted-foreground">دستیار مالی شخصی</p>
+          <p className="text-lg font-semibold leading-6">رهیار</p>
+        </div>
+      </div>
+      <h1 className="mt-6 text-2xl font-semibold tracking-tight">ورود به رهیار</h1>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
         این دفتر فقط برای یک حساب است. ثبت‌نام عمومی وجود ندارد.
       </p>
       {!hasSupabaseEnv() || !hasAllowlist() ? (
-        <p className="mt-6 rounded-2xl border border-line bg-card p-4 text-sm leading-7">
+        <p className="surface mt-6 p-4 text-sm leading-6">
           متغیرهای محیطی هنوز کامل نیستند. فایل <span className="numeric">.env.example</span> را به{" "}
           <span className="numeric">.env.local</span> کپی کنید و نشانی پروژه، کلید عمومی و ایمیل مجاز را
           بگذارید.
         </p>
       ) : (
-        <div className="mt-6 rounded-2xl border border-line bg-card p-5 shadow-sm">
+        <div className="surface mt-6 p-4">
           <LoginForm />
         </div>
       )}

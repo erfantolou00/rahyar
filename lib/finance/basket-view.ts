@@ -1,12 +1,14 @@
 import { readSalesTrend } from "@/lib/finance/codal/parse";
 import { readMarketReport } from "@/lib/finance/prices/market-report";
 import { priceAge } from "@/lib/finance/prices/age";
+import { listedQuoteStale } from "@/lib/finance/prices/session";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { formatDollar, formatMoney, formatNumber, formatPercent, formatQuantity, plainNumber, toNumber } from "@/lib/finance/format";
+import { formatJalali } from "@/lib/finance/jalali";
 import { btcInUsdt } from "@/lib/finance/prices/btc";
 import type { AssetFormValues, BasketColumnKey } from "@/lib/finance/basket-fields";
 import type { BasketRow, BasketSummary } from "@/lib/finance/portfolio";
-import { latestQuote, liveSymbols, type LiveSymbol } from "@/lib/finance/prices/match";
+import { latestQuote, liveSymbolLabels, liveSymbols } from "@/lib/finance/prices/match";
 import type { Numeric, Price, StockFundamentals } from "@/lib/finance/types";
 
 export type ValueTone = "up" | "down" | "flat" | "empty";
@@ -26,12 +28,6 @@ export type PresentedMark = {
   price: string;
   updatedLabel: string;
   stale: boolean;
-};
-
-const markTitles: Record<LiveSymbol, string> = {
-  USD: "دلار",
-  GOLD18: "طلای ۱۸ عیار",
-  BTC: "بیت‌کوین",
 };
 
 export type PresentedReport = {
@@ -61,7 +57,17 @@ export type PresentedFundamental = {
   shapeError: string | null;
   fetchedLabel: string;
   report: PresentedReport | null;
+  historySummary: string;
+  historyPeriods: { tracingNo: string; period: string; kindLabel: string; revisionOf: string | null }[];
+  historyMonths: { period: string; sales: string }[];
 };
+
+type HistoryInput = {
+  periods: { symbol: string; period: string; kind: "interim" | "annual"; tracing_no: string; revision_of: string | null }[];
+  months: { symbol: string; period: string; sales_value: Numeric | null }[];
+};
+
+const emptyHistory: HistoryInput = { periods: [], months: [] };
 
 export type PresentedBasket = {
   rows: PresentedRow[];
@@ -170,10 +176,12 @@ function presentReport(value: StockFundamentals["market_report"]): PresentedRepo
 export function presentFundamentals(
   symbols: string[],
   rows: StockFundamentals[],
+  history: HistoryInput = emptyHistory,
   now = Date.now(),
 ): PresentedFundamental[] {
   return symbols.map((symbol) => {
     const row = rows.find((item) => item.symbol.trim() === symbol.trim());
+    const stored = presentHistory(symbol, history);
     if (!row) {
       return {
         symbol,
@@ -188,6 +196,7 @@ export function presentFundamentals(
         shapeError: null,
         fetchedLabel: "هنوز خوانده نشده",
         report: null,
+        ...stored,
       };
     }
     const age = priceAge(row.fetched_at, now);
@@ -207,8 +216,31 @@ export function presentFundamentals(
       shapeError: row.shape_error,
       fetchedLabel: age.label,
       report: presentReport(row.market_report),
+      ...stored,
     };
   });
+}
+
+function presentHistory(symbol: string, history: HistoryInput): Pick<PresentedFundamental, "historySummary" | "historyPeriods" | "historyMonths"> {
+  const wanted = symbol.trim();
+  const periods = history.periods.filter((item) => item.symbol.trim() === wanted);
+  const months = history.months.filter((item) => item.symbol.trim() === wanted);
+  const distinct = new Set(periods.map((item) => item.period)).size;
+  return {
+    historySummary: periods.length === 0 && months.length === 0
+      ? "تاریخچه‌ای ذخیره نشده"
+      : `${formatNumber(distinct)} فصل، ${formatNumber(months.length)} ماه`,
+    historyPeriods: periods.map((item) => ({
+      tracingNo: item.tracing_no,
+      period: item.period,
+      kindLabel: item.kind === "annual" ? "سالانه" : "میان‌دوره‌ای",
+      revisionOf: item.revision_of,
+    })),
+    historyMonths: months.map((item) => ({
+      period: item.period,
+      sales: item.sales_value == null || item.sales_value === "" ? "—" : formatNumber(toNumber(item.sales_value), 0),
+    })),
+  };
 }
 
 export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[] {
@@ -218,7 +250,7 @@ export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[]
     const quote = latestQuote(prices, symbol);
     if (!quote) {
       return {
-        title: markTitles[symbol],
+        title: liveSymbolLabels[symbol],
         price: "—",
         updatedLabel: "هنوز قیمتی دریافت نشده",
         stale: true,
@@ -228,7 +260,7 @@ export function presentMarks(prices: Price[], now = Date.now()): PresentedMark[]
     const amount = toNumberPrice(quote.price);
     const shown = symbol === "BTC" ? btcInUsdt(amount, usdRial) : amount;
     return {
-      title: markTitles[symbol],
+      title: liveSymbolLabels[symbol],
       price: shown == null ? "—" : symbol === "BTC" ? formatDollar(shown) : formatMoney(shown),
       updatedLabel: age.label,
       stale: age.stale,
@@ -257,7 +289,12 @@ function presentRow(row: BasketRow): PresentedRow {
     id: row.id,
     tone: toneOf(row.absolute),
     updatedLabel,
-    stale: row.priceOrigin === "live" && Boolean(age?.stale),
+    stale:
+      row.priceOrigin === "live" &&
+      row.quotedAt != null &&
+      ((row.type === "stock" || row.type === "fund")
+        ? listedQuoteStale(row.quotedAt, new Date())
+        : Boolean(age?.stale)),
     values: {
       type: row.type,
       symbol: row.name,
@@ -273,6 +310,7 @@ function presentRow(row: BasketRow): PresentedRow {
       type: assetTypeLabels[row.type],
       class: classLabel(row),
       quantity: formatQuantity(row.quantity),
+      acquiredOn: formatJalali(row.acquiredOn),
       avgBuyPrice: formatUnitPrice(buy, unit),
       currentPrice: formatUnitPrice(current, unit),
       currentValue: money(row.currentValue),
@@ -285,6 +323,7 @@ function presentRow(row: BasketRow): PresentedRow {
       type: assetTypeLabels[row.type],
       class: classLabel(row),
       quantity: row.quantity,
+      acquiredOn: row.acquiredOn ?? "",
       avgBuyPrice: buy,
       currentPrice: current,
       currentValue: row.currentValue,

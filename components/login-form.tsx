@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { signIn, type SignInState } from "@/app/login/actions";
+import { primaryControlClass } from "@/components/chrome";
 
 const initialState: SignInState = null;
 
@@ -10,7 +11,7 @@ export function LoginForm() {
 
   return (
     <form action={action} className="grid gap-4">
-      <label className="grid gap-1.5 text-sm">
+      <label className="grid gap-2 text-sm">
         <span>ایمیل</span>
         <input
           name="email"
@@ -18,10 +19,10 @@ export function LoginForm() {
           autoComplete="username"
           required
           dir="ltr"
-          className="field-input text-left"
+          className="field-input text-start"
         />
       </label>
-      <label className="grid gap-1.5 text-sm">
+      <label className="grid gap-2 text-sm">
         <span>رمز عبور</span>
         <input
           name="password"
@@ -30,14 +31,14 @@ export function LoginForm() {
           required
           minLength={8}
           dir="ltr"
-          className="field-input text-left"
+          className="field-input text-start"
         />
       </label>
-      {state?.error ? <p className="text-sm text-danger">{state.error}</p> : null}
+      {state?.error ? <p role="alert" className="text-sm text-danger">{state.error}</p> : null}
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium disabled:opacity-60"
+        className={primaryControlClass}
       >
         {pending ? "در حال ورود..." : "ورود"}
       </button>

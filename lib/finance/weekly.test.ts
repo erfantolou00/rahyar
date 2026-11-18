@@ -65,7 +65,17 @@ describe("buildWeeklyReport", () => {
       now,
       snapshot: snapshot(150, 150),
       previous: null,
-      alerts: [alert(), alert({ id: "old", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false })],
+      alerts: [
+        alert(),
+        alert({ id: "old-rule", kind: "rule", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false }),
+        alert({
+          id: "standing",
+          created_at: "2026-09-01T00:00:00.000Z",
+          sent_at: "2026-09-02T00:00:00.000Z",
+          sent: true,
+        }),
+        alert({ id: "closed", created_at: "2026-09-01T00:00:00.000Z", sent_at: null, sent: false, is_active: false }),
+      ],
     });
 
     expect(report.commentary).toBeNull();
@@ -74,9 +84,10 @@ describe("buildWeeklyReport", () => {
       previous_total_value: null,
       change_value: null,
       change_percent: null,
+      flow_value: 0,
     });
     expect(report.assets[0]).toMatchObject({ pnl_value: null, pnl_percent: null });
-    expect(report.alerts.map((item) => item.id)).toEqual(["alert-1"]);
+    expect(report.alerts.map((item) => item.id)).toEqual(["alert-1", "standing"]);
     expect(report.weights[0]).toMatchObject({ status: "above", gap_percent: 20 });
   });
 
@@ -120,6 +131,24 @@ describe("buildWeeklyReport", () => {
       value: 0,
       pnl_value: -20,
     });
+    expect(
+      buildWeeklyReport({
+        now,
+        snapshot: snapshot(150, 150),
+        previous,
+        alerts: [],
+        flows: [{ assetId: "gold-1", amount: 40 }],
+      }).assets.find((asset) => asset.id === "gold-1"),
+    ).toMatchObject({ pnl_value: 30, flow_value: 40 });
+    expect(
+      buildWeeklyReport({
+        now,
+        snapshot: snapshot(150, 150),
+        previous,
+        alerts: [],
+        flows: [{ assetId: "gold-1", amount: 40 }],
+      }).portfolio,
+    ).toMatchObject({ change_value: 10, flow_value: 40 });
     expect(report.commentary).toBeNull();
   });
 });
