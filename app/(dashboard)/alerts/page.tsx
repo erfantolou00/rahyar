@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { AlertRow } from "@/components/dashboard/alert-row";
 import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
 import { createAlert, linkBaleChat, retryAlertDelivery, setAlertActive, setAlertFrequency, setBaleChatId } from "@/app/(dashboard)/alerts/actions";
 import { EnablePushButton } from "@/components/enable-push-button";
-import { formatNumber, toNumber } from "@/lib/finance/format";
+import { formatNumber } from "@/lib/finance/format";
 import { alertChannelLabels, alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
 import { alertChannels, alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type PushSubscriptionRecord, type UserSettings } from "@/lib/finance/types";
+import { describeAlert } from "@/lib/overview/live";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "هشدارها" };
@@ -55,31 +57,26 @@ export default async function AlertsPage({
               <ul className="grid gap-3">
                 {alerts.data
                   .filter((alert) => alert.kind !== "allocation_deviation")
-                  .map((alert) => (
-                  <li key={alert.id} className="flex items-start justify-between gap-3 border-b border-line pb-3 text-sm">
-                    <div>
-                      <p className="font-medium">{alert.rule}</p>
-                      <p className="mt-1 text-muted-foreground">
-                        آستانه <span className="numeric">{formatNumber(toNumber(alert.threshold))}</span>
-                        {" · "}
-                        {alert.channel}
-                        {" · "}
-                        {alert.frequency}
-                        {" · "}
-                        {alert.is_active ? "فعال" : "خاموش"}
-                        {" · "}
-                        {alert.sent ? "اعلان ارسال شد" : "اعلان در انتظار"}
-                      </p>
-                    </div>
-                    <form action={setAlertActive}>
-                      <input type="hidden" name="id" value={alert.id} />
-                      <input type="hidden" name="is_active" value={alert.is_active ? "false" : "true"} />
-                      <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs">
-                        {alert.is_active ? "خاموش" : "روشن"}
-                      </button>
-                    </form>
-                  </li>
-                ))}
+                  .map((alert) => {
+                    const summary = describeAlert(alert);
+                    return (
+                      <AlertRow
+                        key={alert.id}
+                        title={summary.title}
+                        meta={`${summary.meta} · ${alert.is_active ? "فعال" : "خاموش"} · ${alert.sent ? "اعلان ارسال شد" : "اعلان در انتظار"}`}
+                        active={alert.is_active}
+                        action={
+                          <form action={setAlertActive}>
+                            <input type="hidden" name="id" value={alert.id} />
+                            <input type="hidden" name="is_active" value={alert.is_active ? "false" : "true"} />
+                            <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs">
+                              {alert.is_active ? "خاموش" : "روشن"}
+                            </button>
+                          </form>
+                        }
+                      />
+                    );
+                  })}
               </ul>
             )}
           </Panel>

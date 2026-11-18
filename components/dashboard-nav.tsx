@@ -27,8 +27,8 @@ export function DashboardFrame({ email, children }: { email: string; children: R
       <main
         className={
           chat
-            ? "mx-auto flex w-full min-h-0 max-w-6xl flex-1 flex-col overflow-hidden"
-            : "mx-auto w-full min-h-0 max-w-6xl flex-1 overflow-y-auto px-4 py-8"
+            ? "mx-auto flex w-full min-h-0 max-w-full flex-1 flex-col overflow-hidden"
+            : "mx-auto w-full min-h-0 max-w-full flex-1 overflow-y-auto px-16 py-8"
         }
       >
         {children}
@@ -41,18 +41,18 @@ export function DashboardNav({ email }: { email: string }) {
   const pathname = usePathname();
 
   return (
-    <header className="border-b border-line bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+    <header className="sticky top-0 z-20 border-b border-line bg-background/85 backdrop-blur-md">
+      <div className="mx-auto flex max-w-full items-center justify-between gap-4 px-16 py-3">
         <div className="flex items-center gap-3">
           <span
             aria-hidden
-            className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-brand-2 text-sm font-bold text-primary-foreground shadow-md shadow-primary/20"
+            className="grid size-9 place-items-center rounded-xl bg-primary text-sm font-bold text-primary-foreground"
           >
-            ر
+            R
           </span>
           <div>
-            <p className="text-xs text-muted-foreground">دستیار مالی شخصی</p>
             <p className="text-lg font-semibold leading-6">رهیار</p>
+            <p className="text-xs text-muted-foreground">دستیار مالی شخصی</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -69,7 +69,7 @@ export function DashboardNav({ email }: { email: string }) {
           </form>
         </div>
       </div>
-      <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-3">
+      <nav className="mx-auto flex max-w-full gap-1 overflow-x-auto px-24 pb-3">
         {links.map((link) => {
           const active = pathname === link.href;
           return (
@@ -79,8 +79,8 @@ export function DashboardNav({ email }: { email: string }) {
               aria-current={active ? "page" : undefined}
               className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm transition ${
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25"
-                  : "text-foreground hover:bg-accent-soft"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {link.label}

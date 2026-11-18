@@ -14,7 +14,9 @@ import type {
   Price,
   PriceUnit,
   Report,
+  HoldingSnapshotRow,
   MacroIndicatorRow,
+  PortfolioSnapshotRow,
   StockFundamentals,
   ReportType,
   Transaction,
@@ -202,6 +204,41 @@ export type Database = {
         Update: Partial<MacroIndicatorRow>;
         Relationships: [];
       };
+      portfolio_snapshots: {
+        Row: PortfolioSnapshotRow;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          day: string;
+          total_value: Numeric;
+          captured_at?: string;
+        };
+        Update: Partial<PortfolioSnapshotRow>;
+        Relationships: [];
+      };
+      holding_snapshots: {
+        Row: HoldingSnapshotRow;
+        Insert: {
+          id?: string;
+          user_id?: string;
+          asset_id: string;
+          day: string;
+          quantity: Numeric;
+          price?: Numeric | null;
+          value: Numeric;
+          captured_at?: string;
+        };
+        Update: Partial<HoldingSnapshotRow>;
+        Relationships: [
+          {
+            foreignKeyName: "holding_snapshots_asset_id_fkey";
+            columns: ["asset_id"];
+            isOneToOne: false;
+            referencedRelation: "assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       chat_logs: {
         Row: ChatLog;
         Insert: {
@@ -226,6 +263,31 @@ export type Database = {
           p_formula_version: string;
         };
         Returns: Allocation;
+      };
+      post_transaction: {
+        Args: {
+          p_asset_id: string;
+          p_type: TransactionType;
+          p_qty: number;
+          p_traded_on: string;
+          p_price?: number;
+          p_note?: string | null;
+          p_settles_cash?: boolean;
+        };
+        Returns: Transaction;
+      };
+      adjust_average: {
+        Args: {
+          p_asset_id: string;
+          p_price: number;
+          p_traded_on: string;
+          p_note?: string | null;
+        };
+        Returns: null;
+      };
+      reset_price_history: {
+        Args: { p_user_id: string };
+        Returns: number;
       };
     };
     Enums: {

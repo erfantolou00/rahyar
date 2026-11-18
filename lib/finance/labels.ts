@@ -26,6 +26,7 @@ export const transactionTypeLabels: Record<TransactionType, string> = {
   sell: "فروش",
   deposit: "واریز",
   withdraw: "برداشت",
+  adjust: "اصلاح میانگین",
 };
 
 export const reportTypeLabels: Record<ReportType, string> = {

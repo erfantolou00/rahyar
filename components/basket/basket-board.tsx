@@ -2,15 +2,20 @@
 
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { LineChart } from "lucide-react";
+import { Info } from "lucide-react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/(dashboard)/basket/actions";
+import { AssetDetailDialog, type HoldingChart } from "@/components/basket/asset-detail-dialog";
 import { AssetFields } from "@/components/basket/asset-fields";
 import { FundamentalsLoader } from "@/components/basket/fundamentals-loader";
+import { AssetChart } from "@/components/dashboard/asset-chart";
+import { ChartContainer } from "@/components/dashboard/chart-container";
+import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { HoldingGrowthDialog } from "@/components/holding-growth-dialog";
-import { basketColumns, emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
+import { emptyAssetValues, type AssetFormValues } from "@/lib/finance/basket-fields";
 import type { PresentedMark, PresentedRow, ValueTone } from "@/lib/finance/basket-view";
+import type { Tone } from "@/lib/overview/tone";
+import type { OverviewSliceView } from "@/lib/overview/view";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +25,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SortableTable, type SortableColumn } from "@/components/sortable-table";
 
 const toneClass: Record<ValueTone, string> = {
   up: "text-ok",
@@ -29,9 +33,17 @@ const toneClass: Record<ValueTone, string> = {
   empty: "text-muted-foreground",
 };
 
+function tileTone(tone: ValueTone): Tone {
+  if (tone === "up") return "profit";
+  if (tone === "down") return "loss";
+  return "neutral";
+}
+
 export function BasketBoard({
   marks,
   rows,
+  charts,
+  slices,
   totalValue,
   totalAbsolute,
   totalPercent,
@@ -39,6 +51,8 @@ export function BasketBoard({
 }: {
   marks: PresentedMark[];
   rows: PresentedRow[];
+  charts: Record<string, HoldingChart>;
+  slices: OverviewSliceView[];
   totalValue: string;
   totalAbsolute: string;
   totalPercent: string;
@@ -47,48 +61,59 @@ export function BasketBoard({
   const [editing, setEditing] = useState<PresentedRow | null>(null);
   const [removing, setRemoving] = useState<PresentedRow | null>(null);
   const [growth, setGrowth] = useState<PresentedRow | null>(null);
+  const [detail, setDetail] = useState<PresentedRow | null>(null);
   const [tab, setTab] = useState<"holdings" | "fundamentals">("holdings");
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid lg:grid-cols-3 grid-cols-2 gap-2">
         {marks.map((mark) => (
-          <Card key={mark.title} size="sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">{mark.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold">{mark.price}</p>
-              <p className={mark.stale ? "text-sm text-warn" : "text-sm text-muted-foreground"}>{mark.updatedLabel}</p>
-            </CardContent>
-          </Card>
+          <article key={mark.title} className="surface-card surface-card-compact min-w-0">
+            <p className="text-xs text-muted-foreground">{mark.title}</p>
+            <p className="numeric mt-1 truncate text-2xl font-semibold">{mark.price}</p>
+            <p className={mark.stale ? "mt-1 truncate text-[11px] text-warn" : "mt-1 truncate text-[11px] text-muted-foreground"}>
+              {mark.updatedLabel}
+            </p>
+          </article>
         ))}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Summary label="ارزش سبد" value={totalValue} />
-        <Summary label="سود/زیان" value={totalAbsolute} tone={totalTone} />
-        <Summary label="بازده" value={totalPercent} tone={totalTone} />
+        <KpiTile density="compact" label="ارزش سبد" value={totalValue} />
+        <KpiTile density="compact" label="سود و زیان" value={totalAbsolute} valueTone={tileTone(totalTone)} />
+        <KpiTile density="compact" label="بازده" value={totalPercent} valueTone={tileTone(totalTone)} />
       </div>
 
-      <div className="flex gap-2" role="tablist" aria-label="نمای سبد">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "holdings"}
-          onClick={() => setTab("holdings")}
-          className={tab === "holdings" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
-        >
-          سبد
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "fundamentals"}
-          onClick={() => setTab("fundamentals")}
-          className={tab === "fundamentals" ? "rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground" : "rounded-lg border border-line px-3 py-1.5 text-sm"}
-        >
-          بنیادی سهام
-        </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-2" role="tablist" aria-label="نمای سبد">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "holdings"}
+            onClick={() => setTab("holdings")}
+            className={tab === "holdings" ? "rounded-full bg-primary px-3 py-1 text-sm text-primary-foreground" : "rounded-full px-3 py-1 text-sm text-muted-foreground hover:bg-muted"}
+          >
+            سبد
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "fundamentals"}
+            onClick={() => setTab("fundamentals")}
+            className={tab === "fundamentals" ? "rounded-full bg-primary px-3 py-1 text-sm text-primary-foreground" : "rounded-full px-3 py-1 text-sm text-muted-foreground hover:bg-muted"}
+          >
+            بنیادی
+          </button>
+        </div>
+        <Dialog>
+          <DialogTrigger render={<Button type="button" size="sm" variant="outline" />}>افزودن</DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>دارایی جدید</DialogTitle>
+              <DialogDescription>
+                مبنای قیمت را ریال یا دلار انتخاب کنید. موجودی را بعد از ساخت، از خود کارت کم و زیاد کنید.
+              </DialogDescription>
+            </DialogHeader>
+            <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className={tab === "fundamentals" ? "grid gap-4" : "hidden"}>
@@ -97,106 +122,62 @@ export function BasketBoard({
 
       {tab === "holdings" ? (
         <>
-      <div className="flex justify-start">
-        <Dialog>
-          <DialogTrigger render={<Button type="button" />}>افزودن دارایی</DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>دارایی جدید</DialogTitle>
-              <DialogDescription>
-                مبنای قیمت را ریال یا دلار انتخاب کنید. تعداد می‌تواند اعشاری باشد، مثل ۰٫۰۰۰۳ بیت‌کوین. برای سهام و صندوق بورسی آخرین قیمت معامله نشان داده می‌شود و برای بقیه، اگر قیمت فعلی خالی بماند قیمت زنده استفاده می‌شود.
-              </DialogDescription>
-            </DialogHeader>
-            <AssetEditor action={createAsset} values={emptyAssetValues()} submitLabel="افزودن به سبد" />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-sm text-muted-foreground">هنوز دارایی‌ای در سبد نیست.</CardContent>
-        </Card>
-      ) : (
-        <>
-          <div className="hidden md:block">
-            <SortableTable
-              rows={rows}
-              rowKey={(row) => row.id}
-              minWidth="64rem"
-              columns={basketColumns.map((column): SortableColumn<PresentedRow> => ({
-                key: column.key,
-                label: column.label,
-                numeric: column.numeric,
-                sortValue: (row) => row.sort[column.key],
-                render: (row) => (
-                  <div>
-                    {column.key === "name" ? (
-                      <HoldingName row={row} onOpen={setGrowth} />
-                    ) : (
-                      <span
-                        className={`${column.numeric ? "numeric" : ""} ${
-                          column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""
-                        }`}
-                      >
-                        {row.cells[column.key]}
-                      </span>
-                    )}
-                    {column.key === "currentPrice" && row.updatedLabel ? (
-                      <p className={row.stale ? "mt-1 text-xs text-warn" : "mt-1 text-xs text-muted-foreground"}>
-                        {row.updatedLabel}
-                      </p>
-                    ) : null}
+          {rows.length === 0 ? (
+            <p className="text-sm leading-7 text-muted-foreground">هنوز دارایی‌ای در سبد نیست.</p>
+          ) : (
+            <ul className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+              {rows.map((row) => (
+                <li key={row.id} className="surface-card surface-card-compact flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{row.cells.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{row.cells.type}</p>
+                    {row.stale && row.updatedLabel ? <p className="mt-0.5 text-[11px] text-warn">{row.updatedLabel}</p> : null}
                   </div>
-                ),
-              }))}
-              trailing={{
-                label: "عملیات",
-                render: (row) => <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />,
-              }}
-            />
-          </div>
-
-          <ul className="grid gap-3 md:hidden">
-            {rows.map((row) => (
-              <li key={row.id}>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>
-                      <HoldingName row={row} onOpen={setGrowth} />
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-2">
-                    {basketColumns.slice(1).map((column) => (
-                      <div key={column.key} className="flex items-start justify-between gap-3 text-sm">
-                        <span className="text-muted-foreground">{column.label}</span>
-                        <span className="text-left">
-                          <span className={`${column.numeric ? "numeric" : ""} ${column.key === "absolute" || column.key === "percent" ? toneClass[row.tone] : ""}`}>
-                            {row.cells[column.key]}
-                          </span>
-                          {column.key === "currentPrice" && row.updatedLabel ? (
-                            <span className={row.stale ? "mt-1 block text-xs text-warn" : "mt-1 block text-xs text-muted-foreground"}>
-                              {row.updatedLabel}
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                    ))}
-                    <RowActions row={row} onEdit={setEditing} onRemove={setRemoving} />
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="text-end">
+                      <p className="numeric text-sm">{row.cells.currentValue}</p>
+                      <p className={`numeric text-xs ${toneClass[row.tone]}`}>{row.cells.percent}</p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`اطلاعات ${row.cells.name}`}
+                      onClick={() => setDetail(row)}
+                      className="grid size-8 place-items-center rounded-full border border-line text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Info className="size-4" aria-hidden />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+         
         </>
       ) : null}
+
+      <AssetDetailDialog
+        row={detail}
+        chart={detail ? charts[detail.id] ?? null : null}
+        onClose={() => setDetail(null)}
+        onEdit={(row) => {
+          setDetail(null);
+          setEditing(row);
+        }}
+        onRemove={(row) => {
+          setDetail(null);
+          setRemoving(row);
+        }}
+        onGrowth={(row) => {
+          setDetail(null);
+          setGrowth(row);
+        }}
+      />
 
       <Dialog open={editing != null} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>ویرایش دارایی</DialogTitle>
-            <DialogDescription>قیمت‌ها با همان مبنای ذخیره‌شده، ریال یا دلار، ویرایش می‌شوند.</DialogDescription>
+            <DialogDescription>نام، قیمت دستی و طبقهٔ تخصیص از اینجا عوض می‌شود.</DialogDescription>
           </DialogHeader>
           {editing ? (
             <AssetEditor
@@ -239,52 +220,6 @@ export function BasketBoard({
   );
 }
 
-function HoldingName({ row, onOpen }: { row: PresentedRow; onOpen: (row: PresentedRow) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(row)}
-      className="inline-flex items-center gap-1 text-start font-medium underline-offset-4 hover:underline"
-    >
-      <span>{row.cells.name}</span>
-      <LineChart className="size-3.5 text-muted-foreground" aria-hidden />
-      <span className="sr-only">نمودار رشد</span>
-    </button>
-  );
-}
-
-function Summary({ label, value, tone = "flat" }: { label: string; value: string; tone?: ValueTone }) {
-  return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-      </CardHeader>
-      <CardContent className={`numeric text-2xl font-semibold ${toneClass[tone]}`}>{value}</CardContent>
-    </Card>
-  );
-}
-
-function RowActions({
-  row,
-  onEdit,
-  onRemove,
-}: {
-  row: PresentedRow;
-  onEdit: (row: PresentedRow) => void;
-  onRemove: (row: PresentedRow) => void;
-}) {
-  return (
-    <div className="flex gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row)}>
-        ویرایش
-      </Button>
-      <Button type="button" size="sm" variant="destructive" onClick={() => onRemove(row)}>
-        حذف
-      </Button>
-    </div>
-  );
-}
-
 function AssetEditor({
   action,
   values,
@@ -299,7 +234,7 @@ function AssetEditor({
   return (
     <form action={action} className="grid gap-4">
       {id ? <input type="hidden" name="id" value={id} /> : null}
-      <AssetFields values={values} />
+      <AssetFields values={values} mode={id ? "edit" : "create"} />
       <DialogFooter>
         <SaveButton>{submitLabel}</SaveButton>
       </DialogFooter>

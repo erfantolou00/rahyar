@@ -5,7 +5,7 @@ import { TransactionsTable } from "@/components/transactions-table";
 import { formatDay, formatNumber, toNumber } from "@/lib/finance/format";
 import { transactionTypeLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
-import { transactionTypes, type Asset, type Transaction } from "@/lib/finance/types";
+import { entryTypes, type Asset, type Transaction } from "@/lib/finance/types";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "تراکنش‌ها" };
@@ -43,6 +43,7 @@ export default async function TransactionsPage({
                 dateLabel: formatDay(row.date),
                 dateValue: row.date,
                 asset: symbols.get(row.asset_id) ?? "—",
+                type: row.type,
                 typeLabel: transactionTypeLabels[row.type],
                 qtyLabel: formatNumber(toNumber(row.qty)),
                 qtyValue: toNumber(row.qty),
@@ -69,7 +70,7 @@ export default async function TransactionsPage({
               </Field>
               <Field label="نوع">
                 <select name="type" required className="field-input">
-                  {transactionTypes.map((type) => (
+                  {entryTypes.map((type) => (
                     <option key={type} value={type}>
                       {transactionTypeLabels[type]}
                     </option>

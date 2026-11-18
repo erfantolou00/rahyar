@@ -1,20 +1,31 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AllocationDeviationPanel } from "@/components/allocation-deviation-panel";
-import { EmptyState, PageHeader, Panel, SchemaNotice } from "@/components/chrome";
+import { PageHeader, SchemaNotice } from "@/components/chrome";
 import { MacroPanel } from "@/components/macro-panel";
+import { OverviewDashboard } from "@/components/overview/overview-dashboard";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
 import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
-import { formatNumber, formatPercent, toNumber } from "@/lib/finance/format";
+import { performanceSeries, sincePriorClose } from "@/lib/finance/book-history";
+import { todayKey } from "@/lib/finance/holding-growth";
 import { presentMacro } from "@/lib/finance/macro/present";
-import { allocationStatusLabels, assetTypeLabels, transactionTypeLabels } from "@/lib/finance/labels";
-import { loadPortfolio, readRows } from "@/lib/finance/queries";
+import { loadBasket, loadPortfolio, readRows } from "@/lib/finance/queries";
+import { syncBookClose } from "@/lib/finance/snapshots";
 import type { Alert, Allocation, MacroIndicatorRow, Transaction } from "@/lib/finance/types";
+import { liveOverviewSource } from "@/lib/overview/live";
+import { sampleOverviewSource } from "@/lib/overview/sample";
+import { buildOverviewView } from "@/lib/overview/view";
+import { userIdFromClaims } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "نمای کلی" };
 
-export default async function OverviewPage() {
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ preview?: string }>;
+}) {
+  const params = await searchParams;
+  const preview = params.preview === "1";
   const supabase = await createClient();
   const [portfolio, transactions, alerts, allocationRows, macroRows] = await Promise.all([
     loadPortfolio(supabase),
@@ -28,106 +39,80 @@ export default async function OverviewPage() {
     ),
   ]);
 
-  if (!portfolio.ok) return <SchemaNotice missing={portfolio.missingSchema} />;
+  if (!portfolio.ok && !preview) return <SchemaNotice missing={portfolio.missingSchema} />;
 
-  const deviations = allocationRows.ok
-    ? deviationsForSnapshot(portfolio.data, allocationRows.data)
-    : [];
-  const saved = allocationRows.ok ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
-  const saveState = !allocationRows.ok
+  const basket = portfolio.ok ? await loadBasket(supabase) : null;
+  const deviations =
+    portfolio.ok && allocationRows.ok ? deviationsForSnapshot(portfolio.data, allocationRows.data) : [];
+  const canSync = portfolio.ok && allocationRows.ok;
+  const saved = canSync ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
+  const saveState = !canSync || saved == null || saved.ok
     ? "saved"
-    : saved?.ok
-      ? "saved"
-      : saved?.missingSchema
-        ? "missing"
-        : "failed";
-  const activeRules = alerts.ok
-    ? alerts.data.filter((alert) => alert.kind !== "allocation_deviation")
-    : null;
-
+    : saved.missingSchema
+      ? "missing"
+      : "failed";
   const macro = macroRows.ok ? presentMacro(macroRows.data) : null;
+  const emptyBook =
+    portfolio.ok &&
+    transactions.ok &&
+    portfolio.data.holdings.length === 0 &&
+    transactions.data.length === 0;
+  const symbols = new Map(
+    (portfolio.ok ? portfolio.data.holdings : []).map((holding) => [holding.id, holding.symbol]),
+  );
+  const claims = portfolio.ok && !preview && !emptyBook ? await supabase.auth.getClaims() : null;
+  const userId = userIdFromClaims(claims?.data?.claims);
+  const today = todayKey();
+  const book =
+    userId && basket?.ok && basket.data.rows.length > 0
+      ? await syncBookClose(supabase, userId, basket.data)
+      : null;
+  const liveTotal = basket?.ok ? basket.data.totalValue : portfolio.ok ? portfolio.data.totalValue : 0;
+  const move = book ? sincePriorClose(book.totals, today, liveTotal) : null;
+  const series = book ? performanceSeries(book.totals, today, liveTotal) : [];
+  const source =
+    preview || emptyBook || !portfolio.ok
+      ? sampleOverviewSource(preview ? "preview" : "empty")
+      : liveOverviewSource({
+          totalValue: portfolio.data.totalValue,
+          holdingsCount: portfolio.data.holdings.length,
+          totalAbsolute: basket?.ok ? basket.data.totalAbsolute : null,
+          totalPercent: basket?.ok ? basket.data.totalPercent : null,
+          todayAbsolute: move?.absolute ?? null,
+          todayPercent: move?.percent ?? null,
+          series: series.map((point) => ({ at: point.day, value: point.value })),
+          seriesCaption: book?.caption ?? "هنوز ارزش شبانه‌ای ثبت نشده است.",
+          byType: portfolio.data.byType,
+          alerts: alerts.ok ? alerts.data : null,
+          transactions: transactions.ok ? transactions.data : null,
+          symbols,
+        });
+  const view = buildOverviewView(source);
 
   return (
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. اگر قیمت‌ها کهنه باشند، بعد از نمایش صفحه در پس‌زمینه تازه می‌شوند."
+        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. سود امروز وقتی قیمت دیروز موجود باشد نشان داده می‌شود."
         action={<RefreshPricesButton returnTo="/" />}
       />
-      <AllocationDeviationPanel
-        deviations={deviations}
-        ready={allocationRows.ok}
-        saveState={saveState}
-      />
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <Panel title="ارزش کل">
-          <p className="numeric text-3xl font-semibold">{formatNumber(portfolio.data.totalValue, 0)}</p>
-        </Panel>
-        <Panel title="دارایی‌ها">
-          <p className="numeric text-3xl font-semibold">{formatNumber(portfolio.data.holdings.length, 0)}</p>
-        </Panel>
-        <Panel title="هشدار فعال">
-          <p className="numeric text-3xl font-semibold">
-            {activeRules ? formatNumber(activeRules.length, 0) : "—"}
-          </p>
-        </Panel>
+      <OverviewDashboard view={view} />
+      <div className={view.sample ? "mt-8" : "mt-4"}>
+        {view.sample ? (
+          <p className="mb-3 text-xs text-muted-foreground">وضعیت واقعی دفتر، جدا از اعداد نمونه بالا</p>
+        ) : null}
+        <AllocationDeviationPanel
+          deviations={deviations}
+          ready={allocationRows.ok}
+          saveState={saveState}
+        />
       </div>
-
       <div className="mt-4">
         <MacroPanel
           cards={macro?.cards ?? []}
           empty={macro?.empty ?? false}
           schemaIssue={macroRows.ok ? null : macroRows.missingSchema}
         />
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel title="وزن طبقات تخصیص">
-          {portfolio.data.byType.length === 0 ? (
-            <EmptyState>
-              هنوز دارایی یا محدوده‌ای ثبت نشده. از{" "}
-              <Link href="/basket" className="underline underline-offset-4">
-                دارایی‌ها
-              </Link>{" "}
-              شروع کنید.
-            </EmptyState>
-          ) : (
-            <ul className="grid gap-3">
-              {portfolio.data.byType.map((row) => (
-                <li key={row.type} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{assetTypeLabels[row.type]}</span>
-                  <span className="text-muted-foreground">
-                    <span className="numeric">{formatPercent(row.weight)}</span>
-                    {" · "}
-                    {allocationStatusLabels[row.status]}
-                    {row.minPercent != null && row.maxPercent != null ? (
-                      <span className="numeric">
-                        {" "}
-                        ({formatNumber(row.minPercent, 0)}–{formatNumber(row.maxPercent, 0)})
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-        <Panel title="آخرین تراکنش‌ها">
-          {!transactions.ok ? (
-            <EmptyState>تراکنش‌ها خوانده نشد.</EmptyState>
-          ) : transactions.data.length === 0 ? (
-            <EmptyState>تراکنشی ثبت نشده است.</EmptyState>
-          ) : (
-            <ul className="grid gap-2 text-sm">
-              {transactions.data.map((row) => (
-                <li key={row.id} className="flex justify-between gap-3">
-                  <span>{row.note || transactionTypeLabels[row.type]}</span>
-                  <span className="numeric text-muted-foreground">{formatNumber(toNumber(row.qty))}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { allocationClasses, suggestAllocationClass } from "@/lib/finance/allocation-class";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetFields, type AssetField, type AssetFormValues } from "@/lib/finance/basket-fields";
+import { isLedgerAsset } from "@/lib/finance/holding-move";
 import { priceUnits, type PriceUnit } from "@/lib/finance/prices/unit";
 import { assetTypes, type AssetType } from "@/lib/finance/types";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,7 @@ import { Label } from "@/components/ui/label";
 const controlClass = "h-10 bg-card";
 const unitLabels: Record<PriceUnit, string> = { rial: "ریال", usd: "دلار" };
 
-export function AssetFields({ values }: { values: AssetFormValues }) {
+export function AssetFields({ values, mode }: { values: AssetFormValues; mode: "create" | "edit" }) {
   const [type, setType] = useState(values.type);
   const [symbol, setSymbol] = useState(values.symbol);
   const [unit, setUnit] = useState<PriceUnit>(values.price_unit === "usd" ? "usd" : "rial");
@@ -27,6 +28,17 @@ export function AssetFields({ values }: { values: AssetFormValues }) {
     label: unitLabels[option],
   }));
   const suggestion = suggestAllocationClass(asAssetType(type), symbol);
+  const ledger = isLedgerAsset(type);
+  const lockPosition = mode === "edit" && ledger;
+  const hidden = new Set<string>();
+  if (ledger) {
+    hidden.add("quantity");
+    hidden.add("avg_buy_price");
+  }
+  if (lockPosition) {
+    hidden.add("type");
+    hidden.add("price_unit");
+  }
 
   function changeType(next: string) {
     setType(next);
@@ -37,7 +49,22 @@ export function AssetFields({ values }: { values: AssetFormValues }) {
 
   return (
     <div className="grid gap-3">
-      {assetFields.map((field) => (
+      {lockPosition ? (
+        <>
+          <input type="hidden" name="type" value={type} />
+          <input type="hidden" name="price_unit" value={unit} />
+          <p className="text-xs leading-5 text-muted-foreground">
+            نوع و مبنای قیمت ثابت‌اند. تعداد و میانگین خرید از خود کارت تغییر می‌کند.
+          </p>
+        </>
+      ) : null}
+      {mode === "create" && ledger ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          دارایی با موجودی صفر ساخته می‌شود. تعداد را بعداً از خود کارت اضافه کنید.
+        </p>
+      ) : null}
+      {assetFields.map((field) =>
+        hidden.has(field.name) ? null : (
         <FieldControl
           key={field.name}
           field={field}
@@ -51,7 +78,8 @@ export function AssetFields({ values }: { values: AssetFormValues }) {
           typeOptions={typeOptions}
           unitOptions={unitOptions}
         />
-      ))}
+      ),
+      )}
       <AllocationClassField
         manual={manualClass}
         chosen={chosenClass}

@@ -18,6 +18,25 @@ describe("shiftDays", () => {
 });
 
 describe("buildHoldingSeries", () => {
+  it("keeps the market price when the average is corrected", () => {
+    const series = buildHoldingSeries({
+      quantity: 10,
+      trades: [
+        { at: "2026-01-01", type: "buy", qty: 10, price: 100 },
+        { at: "2026-01-10", type: "adjust", qty: 10, price: 80 },
+      ],
+      quotes: [
+        { at: "2026-01-01", price: 100 },
+        { at: "2026-01-10", price: 140 },
+      ],
+    });
+
+    expect(series.points).toEqual([
+      { at: "2026-01-01", value: 1000 },
+      { at: "2026-01-10", value: 1400 },
+    ]);
+  });
+
   it("marks the position to market from trades and later quotes", () => {
     const series = buildHoldingSeries({
       quantity: 6,

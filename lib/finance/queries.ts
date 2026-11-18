@@ -20,7 +20,7 @@ export type LoadResult<T> =
   | { ok: true; data: T }
   | { ok: false; missingSchema: boolean };
 
-function missingSchema(error: { code?: string; message?: string } | null): boolean {
+export function missingSchema(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return (
     error.code === "PGRST205" ||
@@ -45,6 +45,7 @@ const liveSymbols = ["USD", "GOLD18", "BTC"] as const;
 export async function loadLatestPrices(
   supabase: FinanceClient,
   assets: Pick<Asset, "type" | "symbol">[],
+  userId?: string,
 ): Promise<LoadResult<Price[]>> {
   const assetKeys = new Map<string, { type: Asset["type"]; symbol: string }>();
   for (const asset of assets) {
@@ -55,27 +56,18 @@ export async function loadLatestPrices(
 
   const [assetResults, liveResults] = await Promise.all([
     Promise.all(
-      [...assetKeys.values()].map((key) =>
-        supabase
-          .from("prices")
-          .select("*")
-          .eq("asset_type", key.type)
-          .eq("symbol", key.symbol)
-          .order("timestamp", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ),
+      [...assetKeys.values()].map((key) => {
+        let query = supabase.from("prices").select("*").eq("asset_type", key.type).eq("symbol", key.symbol);
+        if (userId) query = query.eq("user_id", userId);
+        return query.order("timestamp", { ascending: false }).limit(1).maybeSingle();
+      }),
     ),
     Promise.all(
-      liveSymbols.map((symbol) =>
-        supabase
-          .from("prices")
-          .select("*")
-          .eq("symbol", symbol)
-          .order("timestamp", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ),
+      liveSymbols.map((symbol) => {
+        let query = supabase.from("prices").select("*").eq("symbol", symbol);
+        if (userId) query = query.eq("user_id", userId);
+        return query.order("timestamp", { ascending: false }).limit(1).maybeSingle();
+      }),
     ),
   ]);
 
@@ -94,19 +86,24 @@ export async function loadLatestPrices(
 
 export async function loadPortfolio(
   supabase: FinanceClient,
+  userId?: string,
 ): Promise<LoadResult<PortfolioSnapshot>> {
+  let assetsQuery = supabase.from("assets").select("*");
+  let allocationsQuery = supabase.from("allocations").select("*").order("valid_from", { ascending: false });
+  if (userId) {
+    assetsQuery = assetsQuery.eq("user_id", userId);
+    allocationsQuery = allocationsQuery.eq("user_id", userId);
+  }
   const [assets, allocations] = await Promise.all([
-    readRows<Asset>(supabase.from("assets").select("*")),
-    readRows<Allocation>(
-      supabase.from("allocations").select("*").order("valid_from", { ascending: false }),
-    ),
+    readRows<Asset>(assetsQuery),
+    readRows<Allocation>(allocationsQuery),
   ]);
 
   const firstFailure = [assets, allocations].find((result) => !result.ok);
   if (firstFailure && !firstFailure.ok) return firstFailure;
   if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
 
-  const prices = await loadLatestPrices(supabase, assets.data);
+  const prices = await loadLatestPrices(supabase, assets.data, userId);
   if (!prices.ok) return prices;
 
   return {
@@ -117,10 +114,13 @@ export async function loadPortfolio(
 
 export async function loadBasket(
   supabase: FinanceClient,
+  userId?: string,
 ): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
-  const assets = await readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true }));
+  let assetsQuery = supabase.from("assets").select("*").order("symbol", { ascending: true });
+  if (userId) assetsQuery = assetsQuery.eq("user_id", userId);
+  const assets = await readRows<Asset>(assetsQuery);
   if (!assets.ok) return assets;
-  const prices = await loadLatestPrices(supabase, assets.data);
+  const prices = await loadLatestPrices(supabase, assets.data, userId);
   const priceRows = prices.ok ? prices.data : [];
   const quotes = latestPrices(priceRows);
   const usd = latestQuote(priceRows, "USD");

@@ -21,6 +21,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --background: #f4f6fc;
   --foreground: #14182b;
   --card: #ffffff;
@@ -50,7 +51,13 @@
   --chart-3: #f59e0b;
   --chart-4: #ec4899;
   --chart-5: #6366f1;
-  --radius: 0.625rem;
+  --chart-6: #0891b2;
+  --chart-7: #7c3aed;
+  --chart-8: #65a30d;
+  --radius: 0.875rem;
+  --space-card: 1.25rem;
+  --space-section: 1rem;
+  --radius-card: 1.125rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -83,6 +90,9 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-8: var(--chart-8);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -112,21 +122,36 @@
 
 body {
   background:
-    radial-gradient(980px 460px at 100% -12%, #ddd8ff 0%, transparent 58%),
-    radial-gradient(720px 380px at -8% -6%, #c8f3ea 0%, transparent 52%),
+    radial-gradient(880px 420px at 100% -18%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 62%),
+    radial-gradient(640px 320px at -10% -8%, color-mix(in srgb, var(--brand-2) 12%, transparent), transparent 58%),
     var(--background);
+  color: var(--foreground);
 }
 
 .numeric {
   unicode-bidi: isolate;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss01" 1, "tnum" 1;
+}
+
+.surface-card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: var(--space-card);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.surface-card-compact {
+  padding: 0.65rem 0.75rem;
 }
 
 .field-input {
   width: 100%;
   border-radius: 0.85rem;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--card);
+  color: var(--foreground);
   padding: 0.65rem 0.8rem;
   outline: none;
 }
@@ -165,43 +190,61 @@ table tbody tr:hover td {
 }
 
 .dark {
-  --background: #0e1220;
-  --foreground: #eef1fb;
-  --card: #171c2e;
-  --card-foreground: #eef1fb;
-  --popover: #171c2e;
-  --popover-foreground: #eef1fb;
-  --primary: #a5b4fc;
-  --primary-foreground: #1e1b4b;
-  --secondary: #242a42;
-  --secondary-foreground: #eef1fb;
-  --muted: #242a42;
-  --muted-foreground: #a3adc4;
-  --accent: #242a42;
-  --accent-foreground: #eef1fb;
+  color-scheme: dark;
+  --background: #090d16;
+  --foreground: #e7edf8;
+  --card: #121826;
+  --card-foreground: #e7edf8;
+  --popover: #161e30;
+  --popover-foreground: #e7edf8;
+  --primary: #e8c07a;
+  --primary-foreground: #1c1408;
+  --secondary: #182033;
+  --secondary-foreground: #e7edf8;
+  --muted: #182033;
+  --muted-foreground: #93a0b8;
+  --accent: #1c2740;
+  --accent-foreground: #e7edf8;
   --destructive: #fb7185;
-  --border: rgb(255 255 255 / 10%);
-  --input: rgb(255 255 255 / 14%);
-  --ring: #818cf8;
-  --line: rgb(255 255 255 / 10%);
-  --accent-soft: #2a2450;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
+  --ring: #e8c07a;
+  --line: rgb(255 255 255 / 8%);
+  --accent-soft: #1a2336;
   --brand-2: #5eead4;
-  --ok: #34d399;
-  --warn: #fbbf24;
+  --ok: #3dd68c;
+  --warn: #f5b942;
   --danger: #fb7185;
-  --chart-1: #a5b4fc;
+  --chart-1: #e8c07a;
   --chart-2: #5eead4;
-  --chart-3: #fbbf24;
+  --chart-3: #7aa2ff;
   --chart-4: #f472b6;
-  --chart-5: #818cf8;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --chart-5: #c4b5fd;
+  --chart-6: #38bdf8;
+  --chart-7: #86efac;
+  --chart-8: #fb923c;
+  --sidebar: #0c1220;
+  --sidebar-foreground: #e7edf8;
+  --sidebar-primary: #e8c07a;
+  --sidebar-primary-foreground: #1c1408;
+  --sidebar-accent: #1c2740;
+  --sidebar-accent-foreground: #e7edf8;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #e8c07a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+body {
+  scroll-behavior: smooth;
+}
+* {
+  scroll-behavior: smooth;
+  scrollbar-color: var(--primary) var(--background);
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+
 }
 
 @layer base {

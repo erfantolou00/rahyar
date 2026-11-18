@@ -108,7 +108,7 @@ export function buildHoldingSeries(input: {
   for (const day of days) {
     for (const trade of tradesByDay.get(day) ?? []) {
       qty += signedQty(trade.type, trade.qty);
-      if (trade.price > 0) lastPrice = trade.price;
+      if (trade.type !== "adjust" && trade.price > 0) lastPrice = trade.price;
     }
     const quote = quoteByDay.get(day);
     if (quote != null) lastPrice = quote;

@@ -83,6 +83,23 @@ function toneOf(value: number | null): ValueTone {
   return "flat";
 }
 
+export function presentClassWeights(summary: BasketSummary): { id: string; label: string; value: number; weight: number }[] {
+  const totals = new Map<string, number>();
+  for (const row of summary.rows) {
+    const id = row.allocationClass ?? row.type;
+    totals.set(id, (totals.get(id) ?? 0) + (row.currentValue ?? 0));
+  }
+  const total = [...totals.values()].reduce((sum, value) => sum + value, 0);
+  return [...totals.entries()]
+    .filter(([, value]) => value > 0)
+    .map(([id, value]) => ({
+      id,
+      label: id in assetTypeLabels ? assetTypeLabels[id as keyof typeof assetTypeLabels] : id,
+      value,
+      weight: total > 0 ? (value / total) * 100 : 0,
+    }));
+}
+
 export function presentBasket(summary: BasketSummary): PresentedBasket {
   return {
     totalValue: money(summary.totalValue),

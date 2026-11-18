@@ -183,7 +183,11 @@ export function HoldingGrowthDialog({
                           {trade.note ? <span className="mt-1 block text-xs text-muted-foreground">{trade.note}</span> : null}
                         </span>
                         <span className="numeric text-left">
-                          {formatNumber(trade.qty)} × {money(trade.price, current.unit)}
+                          {trade.type === "adjust"
+                            ? money(trade.price, current.unit)
+                            : trade.type === "deposit" || trade.type === "withdraw"
+                              ? money(trade.qty, current.unit)
+                              : `${formatNumber(trade.qty)} × ${money(trade.price, current.unit)}`}
                         </span>
                       </li>
                     ))}

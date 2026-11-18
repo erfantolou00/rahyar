@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/macro",
       "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/cron/book",
+      "schedule": "0 17 * * *"
     }
   ]
 }

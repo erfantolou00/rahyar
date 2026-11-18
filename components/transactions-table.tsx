@@ -1,12 +1,15 @@
 "use client";
 
+import { SideBadge } from "@/components/dashboard/side-badge";
 import { SortableTable } from "@/components/sortable-table";
+import type { TransactionType } from "@/lib/finance/types";
 
 export type TransactionTableRow = {
   id: string;
   dateLabel: string;
   dateValue: string;
   asset: string;
+  type: TransactionType;
   typeLabel: string;
   qtyLabel: string;
   qtyValue: number;
@@ -42,7 +45,7 @@ export function TransactionsTable({ rows }: { rows: TransactionTableRow[] }) {
           key: "type",
           label: "نوع",
           sortValue: (row) => row.typeLabel,
-          render: (row) => row.typeLabel,
+          render: (row) => <SideBadge side={row.type} label={row.typeLabel} />,
         },
         {
           key: "qty",

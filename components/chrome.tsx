@@ -28,7 +28,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-card p-4 shadow-sm">
+    <section className="surface-card overflow-hidden">
       {title ? <h2 className="mb-4 text-base font-semibold">{title}</h2> : null}
       {children}
     </section>
@@ -89,6 +89,10 @@ export function SubmitButton({ children }: { children: ReactNode }) {
 const errorMessages: Record<string, string> = {
   invalid: "اطلاعات واردشده کامل یا معتبر نیست.",
   save: "ذخیره انجام نشد. دوباره تلاش کنید.",
+  oversell: "مقدار فروش از موجودی همین دارایی بیشتر است.",
+  ledger: "خرید و فروش برای وجه نقد ثبت نمی‌شود. برای آن از واریز و برداشت استفاده کنید.",
+  cash: "حساب نقدی برای تسویه این معامله پیدا نشد.",
+  empty: "برای اصلاح میانگین باید از این دارایی موجودی داشته باشید.",
   prices: "قیمت‌ها به‌روز نشد. دوباره تلاش کنید.",
   push_missing: "ابتدا اعلان مرورگر را فعال کنید یا شناسه گفتگوی بله را ذخیره کنید.",
   bale_token: "توکن بازوی بله در سرور تنظیم نشده است.",

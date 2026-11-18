@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { interpretWeeklyReport } from "@/lib/ai/interpret-weekly";
 import { cronAuthorized } from "@/lib/cron/auth";
+import { resetPriceHistory } from "@/lib/finance/prices/reset";
 import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -28,6 +29,7 @@ async function run(request: Request) {
   let created = 0;
   let skipped = 0;
   let failed = 0;
+  let cleared = 0;
 
   for (const userId of userIds) {
     const result = await publishWeeklyReport(supabase, userId);
@@ -42,10 +44,16 @@ async function run(request: Request) {
     }
     const interpreted = await interpretWeeklyReport(supabase, userId, result.id, { limit: false });
     if (!interpreted.ok) console.error(`Weekly interpretation was not saved: ${interpreted.code}`);
+    const removed = await resetPriceHistory(supabase, userId);
+    if (removed == null) {
+      console.error("Price history reset failed after the weekly report");
+    } else {
+      cleared += removed;
+    }
     created += 1;
   }
 
-  return NextResponse.json({ ok: true, created, skipped, failed });
+  return NextResponse.json({ ok: true, created, skipped, failed, cleared });
 }
 
 export function GET(request: Request) {
