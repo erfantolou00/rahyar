@@ -1,33 +1,19 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { allocationClasses, suggestAllocationClass } from "@/lib/finance/allocation-class";
 import { assetTypeLabels } from "@/lib/finance/labels";
 import { assetFields, type AssetField, type AssetFormValues } from "@/lib/finance/basket-fields";
+import { isLedgerAsset } from "@/lib/finance/holding-move";
 import { priceUnits, type PriceUnit } from "@/lib/finance/prices/unit";
-import { AccountSelect, type BasketAccount } from "@/components/basket/account-select";
-import { isCashAsset } from "@/lib/finance/ledger";
 import { assetTypes, type AssetType } from "@/lib/finance/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShamsiDateField } from "@/components/basket/shamsi-date-field";
 
 const controlClass = "h-10 bg-card";
 const unitLabels: Record<PriceUnit, string> = { rial: "ریال", usd: "دلار" };
 
-export function AssetFields({
-  values,
-  includeDate = false,
-  defaultDate = "",
-  lockPosition = false,
-  accounts = [],
-}: {
-  values: AssetFormValues;
-  includeDate?: boolean;
-  defaultDate?: string;
-  lockPosition?: boolean;
-  accounts?: BasketAccount[];
-}) {
+export function AssetFields({ values, mode }: { values: AssetFormValues; mode: "create" | "edit" }) {
   const [type, setType] = useState(values.type);
   const [symbol, setSymbol] = useState(values.symbol);
   const [unit, setUnit] = useState<PriceUnit>(values.price_unit === "usd" ? "usd" : "rial");
@@ -42,6 +28,17 @@ export function AssetFields({
     label: unitLabels[option],
   }));
   const suggestion = suggestAllocationClass(asAssetType(type), symbol);
+  const ledger = isLedgerAsset(type);
+  const lockPosition = mode === "edit" && ledger;
+  const hidden = new Set<string>();
+  if (ledger) {
+    hidden.add("quantity");
+    hidden.add("avg_buy_price");
+  }
+  if (lockPosition) {
+    hidden.add("type");
+    hidden.add("price_unit");
+  }
 
   function changeType(next: string) {
     setType(next);
@@ -50,47 +47,39 @@ export function AssetFields({
     if (untouched && next === "crypto") setUnit("usd");
   }
 
-  const fields = lockPosition
-    ? assetFields.filter((field) => field.name !== "quantity" && field.name !== "avg_buy_price" && field.name !== "price_unit")
-    : assetFields;
-
   return (
     <div className="grid gap-3">
-      {fields.map((field) => (
-        <Fragment key={field.name}>
-          <FieldControl
-            field={field}
-            values={values}
-            type={type}
-            symbol={symbol}
-            unit={unit}
-            locked={lockPosition}
-            onTypeChange={changeType}
-            onSymbolChange={setSymbol}
-            onUnitChange={setUnit}
-            typeOptions={typeOptions}
-            unitOptions={unitOptions}
-          />
-          {includeDate && field.name === "quantity" ? (
-            <ShamsiDateField name="acquired_on" defaultValue={defaultDate} />
-          ) : null}
-        </Fragment>
-      ))}
-      {accounts.length > 0 ? <AccountSelect key={unit} accounts={accounts} currency={unit} /> : null}
       {lockPosition ? (
-        <p className="text-sm leading-6 text-muted-foreground">
-          تعداد {values.quantity || "۰"} و قیمت خرید متوسط {values.avg_buy_price || "—"} از دفتر خرید و فروش می‌آید و اینجا عوض نمی‌شود.
+        <>
+          <input type="hidden" name="type" value={type} />
+          <input type="hidden" name="price_unit" value={unit} />
+          <p className="text-xs leading-5 text-muted-foreground">
+            نوع و مبنای قیمت ثابت‌اند. تعداد و میانگین خرید از خود کارت تغییر می‌کند.
+          </p>
+        </>
+      ) : null}
+      {mode === "create" && ledger ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          دارایی با موجودی صفر ساخته می‌شود. تعداد را بعداً از خود کارت اضافه کنید.
         </p>
       ) : null}
-      {!lockPosition && !isCashAsset(type) ? (
-        <div className="grid gap-1.5">
-          <Label htmlFor="asset-fee">کارمزد ({unitLabels[unit]})</Label>
-          <Input id="asset-fee" name="fee" defaultValue="" inputMode="decimal" dir="ltr" min={0} placeholder="۰" className={controlClass} />
-          <p className="text-xs leading-5 text-muted-foreground">
-            به میانگین خرید اضافه می‌شود. فقط اگر «از نقد همین حساب کم شود» روشن باشد، مبلغ خرید و کارمزد از نقد همان حساب کم می‌شود.
-          </p>
-        </div>
-      ) : null}
+      {assetFields.map((field) =>
+        hidden.has(field.name) ? null : (
+        <FieldControl
+          key={field.name}
+          field={field}
+          values={values}
+          type={type}
+          symbol={symbol}
+          unit={unit}
+          onTypeChange={changeType}
+          onSymbolChange={setSymbol}
+          onUnitChange={setUnit}
+          typeOptions={typeOptions}
+          unitOptions={unitOptions}
+        />
+      ),
+      )}
       <AllocationClassField
         manual={manualClass}
         chosen={chosenClass}
@@ -108,7 +97,6 @@ function FieldControl({
   type,
   symbol,
   unit,
-  locked,
   onTypeChange,
   onSymbolChange,
   onUnitChange,
@@ -120,7 +108,6 @@ function FieldControl({
   type: string;
   symbol: string;
   unit: PriceUnit;
-  locked: boolean;
   onTypeChange: (value: string) => void;
   onSymbolChange: (value: string) => void;
   onUnitChange: (value: PriceUnit) => void;
@@ -129,12 +116,10 @@ function FieldControl({
 }) {
   const id = `asset-${field.name}`;
   const unitLabel = unitLabels[unit];
-  const labelText =
-    field.name === "avg_buy_price" && (type === "stock" || type === "fund") ? "قیمت این خرید" : field.label;
   const label =
     field.name === "avg_buy_price" || field.name === "manual_value"
-      ? `${labelText} (${unitLabel})`
-      : labelText;
+      ? `${field.label} (${unitLabel})`
+      : field.label;
 
   return (
     <div className="grid gap-1.5">
@@ -144,7 +129,6 @@ function FieldControl({
           id={id}
           name={field.name}
           required={field.required}
-          disabled={locked && field.name === "type"}
           value={field.name === "price_unit" ? unit : type}
           onChange={(event) => {
             const next = event.target.value;
@@ -163,7 +147,7 @@ function FieldControl({
         <Input
           id={id}
           name={field.name}
-          required={field.name === "avg_buy_price" ? type === "stock" || type === "fund" : field.required}
+          required={field.required}
           value={field.name === "symbol" ? symbol : undefined}
           defaultValue={field.name === "symbol" ? undefined : values[field.name]}
           onChange={field.name === "symbol" ? (event) => onSymbolChange(event.target.value) : undefined}
@@ -185,9 +169,7 @@ function FieldControl({
       ) : null}
       {field.name === "manual_value" ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          {type === "stock" || type === "fund"
-            ? "سهام و صندوق از آخرین قیمت بازار حساب می‌شوند. پر بودن این فیلد آن‌ها را عوض نمی‌کند."
-            : "اگر اینجا عدد باشد، قیمت بازار کنار می‌رود و همین عدد می‌ماند. خالی یعنی قیمت بازار."}
+          اگر خالی بماند و قیمت زنده باشد، همان قیمت در جدول نشان داده می‌شود.
         </p>
       ) : null}
     </div>

@@ -3,7 +3,6 @@ import {
   buildBasket,
   buildPortfolio,
   costBasis,
-  portfolioCostChange,
   profitAndLoss,
   weightPercent,
   type BasketPosition,
@@ -119,7 +118,6 @@ function asset(overrides: Partial<Asset> = {}): Asset {
     allocation_class_source: "auto",
     created_at: "2026-09-29T00:00:00Z",
     updated_at: "2026-09-29T00:00:00Z",
-    acquired_on: null,
     ...overrides,
   };
 }
@@ -185,19 +183,5 @@ describe("buildBasket", () => {
       totalAbsolute: null,
       totalPercent: null,
     });
-  });
-});
-
-describe("portfolioCostChange", () => {
-  it("sums the gap versus average buy", () => {
-    const assets = [asset({ id: "1", type: "stock", symbol: "فولاد", quantity: 2, avg_buy_price: 100 })];
-    const snapshot = buildPortfolio(assets, [quote({ asset_type: "stock", symbol: "فولاد", price: 150 })], []);
-    expect(portfolioCostChange(assets, snapshot, [])).toEqual({ absolute: 100, percent: 50 });
-  });
-
-  it("stays empty when average buy is missing", () => {
-    const assets = [asset({ id: "1", type: "stock", symbol: "فولاد", quantity: 2, avg_buy_price: null })];
-    const snapshot = buildPortfolio(assets, [quote({ asset_type: "stock", symbol: "فولاد", price: 150 })], []);
-    expect(portfolioCostChange(assets, snapshot, [])).toEqual({ absolute: null, percent: null });
   });
 });

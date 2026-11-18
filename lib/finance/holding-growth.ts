@@ -1,6 +1,15 @@
+import type { TransactionType } from "@/lib/finance/types";
+
 export type GrowthPoint = {
   at: string;
   value: number;
+};
+
+export type GrowthTradeInput = {
+  at: string;
+  type: TransactionType;
+  qty: number;
+  price: number;
 };
 
 export const growthRanges = [
@@ -19,20 +28,6 @@ export type GrowthSlice = {
   endValue: number | null;
   change: number | null;
   changePercent: number | null;
-  flow: number;
-};
-
-export type HoldingLot = {
-  day: string;
-  side: "buy" | "sell";
-  quantity: number;
-  price: number | null;
-  fee: number;
-};
-
-export type CashFlow = {
-  day: string;
-  amount: number;
 };
 
 const dayPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -62,38 +57,18 @@ export function todayKey(now = Date.now()): string {
   return dayKey(new Date(now).toISOString());
 }
 
-function signedQuantity(lot: HoldingLot): number {
-  return lot.side === "sell" ? -lot.quantity : lot.quantity;
+function signedQty(type: TransactionType, qty: number): number {
+  const amount = Math.abs(qty);
+  if (type === "buy" || type === "deposit") return amount;
+  if (type === "sell" || type === "withdraw") return -amount;
+  return 0;
 }
 
-/** Money added to the holding that day. Buys are positive. */
-export function cashFlows(lots: HoldingLot[]): CashFlow[] {
-  const byDay = new Map<string, number>();
-  for (const lot of lots) {
-    if (lot.price == null || !(lot.quantity > 0)) continue;
-    const fee = lot.fee > 0 ? lot.fee : 0;
-    const amount = lot.side === "sell" ? -(lot.quantity * lot.price - fee) : lot.quantity * lot.price + fee;
-    const day = dayKey(lot.day);
-    byDay.set(day, (byDay.get(day) ?? 0) + amount);
-  }
-  return [...byDay.entries()]
-    .sort((left, right) => left[0].localeCompare(right[0]))
-    .map(([day, amount]) => ({ day, amount }));
-}
-
-function quantityHeld(lots: HoldingLot[], day: string): number {
-  let quantity = 0;
-  for (const lot of lots) {
-    if (dayKey(lot.day) <= day) quantity += signedQuantity(lot);
-  }
-  return quantity;
-}
-
-/** Values the shares actually held that day. Later buys do not rewrite earlier days. */
 export function buildHoldingSeries(input: {
-  lots: HoldingLot[];
+  quantity: number;
+  trades: GrowthTradeInput[];
   quotes: { at: string; price: number }[];
-}): GrowthPoint[] {
+}): { basis: "trades" | "quantity"; points: GrowthPoint[] } {
   const quoteByDay = new Map<string, number>();
   const quotes = [...input.quotes].sort((left, right) => dayKey(left.at).localeCompare(dayKey(right.at)));
   for (const quote of quotes) {
@@ -101,29 +76,67 @@ export function buildHoldingSeries(input: {
     quoteByDay.set(dayKey(quote.at), quote.price);
   }
 
-  const points: GrowthPoint[] = [];
-  for (const day of [...quoteByDay.keys()].sort()) {
-    const price = quoteByDay.get(day);
-    const quantity = quantityHeld(input.lots, day);
-    if (price == null || !(quantity > 0)) continue;
-    points.push({ at: day, value: quantity * price });
+  const trades = [...input.trades].sort((left, right) => dayKey(left.at).localeCompare(dayKey(right.at)));
+  if (trades.length === 0) {
+    if (!(input.quantity > 0)) return { basis: "quantity", points: [] };
+    let lastPrice: number | null = null;
+    const points: GrowthPoint[] = [];
+    for (const day of [...quoteByDay.keys()].sort()) {
+      const price = quoteByDay.get(day);
+      if (price != null) lastPrice = price;
+      if (lastPrice == null) continue;
+      points.push({ at: day, value: input.quantity * lastPrice });
+    }
+    return { basis: "quantity", points };
   }
-  return points;
+
+  const tradesByDay = new Map<string, GrowthTradeInput[]>();
+  for (const trade of trades) {
+    const day = dayKey(trade.at);
+    const list = tradesByDay.get(day) ?? [];
+    list.push(trade);
+    tradesByDay.set(day, list);
+  }
+
+  const days = [...new Set([...quoteByDay.keys(), ...tradesByDay.keys()])].sort();
+  let qty = 0;
+  let lastPrice: number | null = null;
+  let sawPosition = false;
+  let closed = false;
+  const points: GrowthPoint[] = [];
+
+  for (const day of days) {
+    for (const trade of tradesByDay.get(day) ?? []) {
+      qty += signedQty(trade.type, trade.qty);
+      if (trade.type !== "adjust" && trade.price > 0) lastPrice = trade.price;
+    }
+    const quote = quoteByDay.get(day);
+    if (quote != null) lastPrice = quote;
+    if (lastPrice == null) continue;
+
+    if (qty > 0) {
+      sawPosition = true;
+      closed = false;
+      points.push({ at: day, value: qty * lastPrice });
+      continue;
+    }
+
+    if (sawPosition && !closed) {
+      points.push({ at: day, value: 0 });
+      closed = true;
+    }
+  }
+
+  return { basis: "trades", points };
 }
 
-export function sliceGrowth(
-  points: GrowthPoint[],
-  days: number | null,
-  today: string,
-  flows: CashFlow[] = [],
-): GrowthSlice {
+export function sliceGrowth(points: GrowthPoint[], days: number | null, today: string): GrowthSlice {
   const empty: GrowthSlice = {
     points: [],
     startValue: null,
     endValue: null,
     change: null,
     changePercent: null,
-    flow: 0,
   };
   if (points.length === 0) return empty;
 
@@ -145,14 +158,8 @@ export function sliceGrowth(
   if (selected.length === 0) return empty;
   const startValue = selected[0]?.value ?? null;
   const endValue = selected[selected.length - 1]?.value ?? null;
-  const startDay = selected[0]?.at ?? "";
-  const endDay = selected[selected.length - 1]?.at ?? "";
   if (startValue == null || endValue == null) return empty;
-  const flow = flows.reduce((sum, item) => {
-    if (item.day > startDay && item.day <= endDay) return sum + item.amount;
-    return sum;
-  }, 0);
-  const change = endValue - startValue - flow;
+  const change = endValue - startValue;
   const changePercent = startValue > 0 ? Math.round((change / startValue) * 10000) / 100 : null;
-  return { points: selected, startValue, endValue, change, changePercent, flow };
+  return { points: selected, startValue, endValue, change, changePercent };
 }

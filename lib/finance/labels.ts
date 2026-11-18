@@ -26,7 +26,7 @@ export const transactionTypeLabels: Record<TransactionType, string> = {
   sell: "فروش",
   deposit: "واریز",
   withdraw: "برداشت",
-  transfer: "انتقال",
+  adjust: "اصلاح میانگین",
 };
 
 export const reportTypeLabels: Record<ReportType, string> = {
@@ -49,17 +49,16 @@ export const allocationStatusLabels: Record<AllocationStatus, string> = {
   unset: "بدون محدوده",
 };
 
-export const alertChannelLabels: Record<AlertChannel, string> = {
-  in_app: "داخل برنامه",
-  bale: "بله",
-  push: "اعلان",
-};
-
 export const alertKindLabels: Record<AlertKind, string> = {
   rule: "قاعدهٔ دستی",
   allocation_deviation: "انحراف تخصیص",
   codal_notice: "گزارش کدال",
-  fis_change: "تغییر ارزیابی",
+};
+
+export const alertChannelLabels: Record<AlertChannel, string> = {
+  in_app: "داخل برنامه",
+  bale: "بله",
+  push: "اعلان مرورگر",
 };
 
 export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {

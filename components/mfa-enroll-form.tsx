@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { enrollMfa, verifyEnrollment, type EnrollState } from "@/app/(dashboard)/security/actions";
-import { primaryControlClass } from "@/components/chrome";
 
 const initialState: EnrollState = null;
 
@@ -23,7 +22,7 @@ export function MfaEnrollForm() {
         <button
           type="submit"
           disabled={enrolling}
-          className={primaryControlClass}
+          className="rounded-xl bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium disabled:opacity-60"
         >
           {enrolling ? "در حال ساخت..." : "فعال‌سازی رمز یک‌بارمصرف"}
         </button>
@@ -40,7 +39,7 @@ export function MfaEnrollForm() {
               {state.secret}
             </p>
           ) : null}
-          <label className="grid gap-2 text-sm">
+          <label className="grid gap-1.5 text-sm">
             <span>رمز شش‌رقمی</span>
             <input
               name="code"
@@ -58,7 +57,7 @@ export function MfaEnrollForm() {
           <button
             type="submit"
             disabled={verifying}
-            className={primaryControlClass}
+            className="rounded-xl border border-line px-4 py-2.5 text-sm disabled:opacity-60"
           >
             {verifying ? "در حال تأیید..." : "تأیید و فعال‌سازی"}
           </button>

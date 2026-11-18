@@ -115,8 +115,7 @@ export function parseRahavardAsset(payload: unknown): RahavardProfile {
   };
 }
 
-export async function fetchRahavardJson(path: string, timeoutMs = 8_000): Promise<unknown> {
-  const url = path.startsWith("http") ? path : `${ORIGIN}${path}`;
+async function readRahavard(url: string): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       accept: "application/json",
@@ -124,14 +123,10 @@ export async function fetchRahavardJson(path: string, timeoutMs = 8_000): Promis
       "user-agent": "Mozilla/5.0",
     },
     cache: "no-store",
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(8_000),
   });
   if (!response.ok) throw new Error(`${response.status} ${url}`);
   return response.json() as Promise<unknown>;
-}
-
-async function readRahavard(url: string): Promise<unknown> {
-  return fetchRahavardJson(url);
 }
 
 export async function fetchRahavardProfile(symbol: string): Promise<RahavardProfile | null> {

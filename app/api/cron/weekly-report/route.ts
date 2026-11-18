@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { interpretWeeklyReport } from "@/lib/ai/interpret-weekly";
 import { cronAuthorized } from "@/lib/cron/auth";
-import { assetOwnerIds } from "@/lib/cron/owners";
 import { resetPriceHistory } from "@/lib/finance/prices/reset";
 import { publishWeeklyReport } from "@/lib/finance/publish-weekly";
 import { createServiceClient } from "@/lib/supabase/service";
 
 // Friday 16:30 UTC is 20:00 in Tehran. vercel.json schedules this route.
-// publishWeeklyReport refreshes prices and allocation deviations before it writes the row.
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET?.trim() || null;
@@ -21,8 +19,13 @@ async function run(request: Request) {
   const supabase = createServiceClient();
   if (!supabase) return NextResponse.json({ error: "unavailable" }, { status: 503 });
 
-  const userIds = await assetOwnerIds(supabase);
-  if (!userIds) return NextResponse.json({ error: "unavailable" }, { status: 503 });
+  const owners = await supabase.from("assets").select("user_id");
+  if (owners.error) {
+    console.error(owners.error);
+    return NextResponse.json({ error: "unavailable" }, { status: 503 });
+  }
+
+  const userIds = [...new Set((owners.data ?? []).map((row) => row.user_id))];
   let created = 0;
   let skipped = 0;
   let failed = 0;

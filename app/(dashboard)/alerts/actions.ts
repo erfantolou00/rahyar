@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isBaleChatId, latestBaleChatId, ownBaleId } from "@/lib/bale/send";
-import { readString } from "@/lib/finance/parse";
-import { isNotifyFrequency, type AlertKind } from "@/lib/finance/types";
+import { parseRequiredNumber, readString } from "@/lib/finance/parse";
+import { isAlertKind, isNotifyFrequency } from "@/lib/finance/types";
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
 import { requireSession } from "@/lib/supabase/auth";
 
@@ -12,38 +12,31 @@ function fail(code: "invalid" | "save" | "push_missing" | "push" | "bale_token" 
   redirect(`/alerts?error=${code}`);
 }
 
-const deliveryKinds = ["allocation_deviation", "codal_notice", "fis_change"] as const satisfies readonly AlertKind[];
-
-export async function setAlertFrequencies(formData: FormData) {
-  const { supabase, userId } = await requireSession();
-  const rows = [];
-  for (const kind of deliveryKinds) {
-    const frequency = readString(formData, kind);
-    if (!isNotifyFrequency(frequency)) fail("invalid");
-    rows.push({ user_id: userId, kind, frequency });
-  }
-
-  const { error } = await supabase.from("alert_frequencies").upsert(rows, { onConflict: "user_id,kind" });
-  if (error) {
-    console.error(error);
-    fail("save");
-  }
-
-  revalidatePath("/alerts");
-  redirect("/alerts");
-}
-
-export async function deleteManualAlert(formData: FormData) {
+export async function createAlert(formData: FormData) {
   const { supabase } = await requireSession();
-  const id = readString(formData, "id");
-  if (!id) fail("invalid");
+  const rule = readString(formData, "rule");
+  const threshold = parseRequiredNumber(readString(formData, "threshold"));
+  const channel = readString(formData, "channel");
+  const frequency = readString(formData, "frequency");
 
-  const { error } = await supabase.from("alerts").delete().eq("id", id).eq("kind", "rule");
+  if (!rule || rule.length > 200 || threshold == null || !channel || channel.length > 40 || !frequency || frequency.length > 40) {
+    fail("invalid");
+  }
+
+  const { error } = await supabase.from("alerts").insert({
+    rule,
+    threshold,
+    channel,
+    frequency,
+    is_active: true,
+  });
+
   if (error) {
     console.error(error);
     fail("save");
   }
 
+  await dispatchAlertNotifications(supabase);
   revalidatePath("/alerts");
   redirect("/alerts");
 }
@@ -82,6 +75,25 @@ export async function linkBaleChat() {
   await saveBaleChatId(found.chatId);
 }
 
+export async function setAlertFrequency(formData: FormData) {
+  const { supabase, userId } = await requireSession();
+  const kind = readString(formData, "kind");
+  const frequency = readString(formData, "frequency");
+  if (!isAlertKind(kind) || !isNotifyFrequency(frequency)) fail("invalid");
+
+  const { error } = await supabase.from("alert_frequencies").upsert(
+    { user_id: userId, kind, frequency },
+    { onConflict: "user_id,kind" },
+  );
+  if (error) {
+    console.error(error);
+    fail("save");
+  }
+
+  revalidatePath("/alerts");
+  redirect("/alerts");
+}
+
 export async function retryAlertDelivery() {
   const { supabase } = await requireSession();
   const result = await dispatchAlertNotifications(supabase);
@@ -90,4 +102,20 @@ export async function retryAlertDelivery() {
 
   revalidatePath("/alerts");
   redirect(`/alerts?delivery=${result.sent}-${result.failed}-${result.waiting}-${result.skipped}`);
+}
+
+export async function setAlertActive(formData: FormData) {
+  const { supabase } = await requireSession();
+  const id = readString(formData, "id");
+  const isActive = readString(formData, "is_active") === "true";
+  if (!id) fail("invalid");
+
+  const { error } = await supabase.from("alerts").update({ is_active: isActive }).eq("id", id);
+  if (error) {
+    console.error(error);
+    fail("save");
+  }
+
+  revalidatePath("/alerts");
+  redirect("/alerts");
 }

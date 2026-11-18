@@ -6,7 +6,7 @@ const sideClass: Record<TransactionType, string> = {
   deposit: "bg-ok/15 text-ok",
   sell: "bg-danger/15 text-danger",
   withdraw: "bg-warn/15 text-warn",
-  transfer: "bg-muted text-foreground",
+  adjust: "bg-muted text-foreground",
 };
 
 export function SideBadge({ side, label }: { side: TransactionType; label: string }) {

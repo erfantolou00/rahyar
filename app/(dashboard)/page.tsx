@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import { AllocationDeviationPanel } from "@/components/allocation-deviation-panel";
 import { PageHeader, SchemaNotice } from "@/components/chrome";
+import { MacroPanel } from "@/components/macro-panel";
 import { OverviewDashboard } from "@/components/overview/overview-dashboard";
 import { RefreshPricesButton } from "@/components/refresh-prices-button";
-import { deviationsForSnapshot } from "@/lib/finance/allocation-alerts";
+import { deviationsForSnapshot, syncAllocationDeviationAlerts } from "@/lib/finance/allocation-alerts";
 import { performanceSeries, sincePriorClose } from "@/lib/finance/book-history";
 import { todayKey } from "@/lib/finance/holding-growth";
-import { loadBasket, loadBook, readRows } from "@/lib/finance/queries";
+import { presentMacro } from "@/lib/finance/macro/present";
+import { loadBasket, loadPortfolio, readRows } from "@/lib/finance/queries";
 import { syncBookClose } from "@/lib/finance/snapshots";
-import type { Alert, Transaction } from "@/lib/finance/types";
+import type { Alert, Allocation, MacroIndicatorRow, Transaction } from "@/lib/finance/types";
 import { liveOverviewSource } from "@/lib/overview/live";
 import { sampleOverviewSource } from "@/lib/overview/sample";
 import { buildOverviewView } from "@/lib/overview/view";
-import { requireSession } from "@/lib/supabase/auth";
+import { userIdFromClaims } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "نمای کلی" };
 
@@ -23,40 +26,63 @@ export default async function OverviewPage({
 }) {
   const params = await searchParams;
   const preview = params.preview === "1";
-  const { supabase, userId } = await requireSession();
-  const book = await loadBook(supabase, userId);
-  if (!book.ok && !preview) return <SchemaNotice missing={book.missingSchema} />;
-
-  const basket = book.ok ? await loadBasket(supabase, userId) : null;
-  const [transactions, alerts] = await Promise.all([
+  const supabase = await createClient();
+  const [portfolio, transactions, alerts, allocationRows, macroRows] = await Promise.all([
+    loadPortfolio(supabase),
     readRows<Transaction>(
-      supabase.from("transactions").select("*").eq("user_id", userId).order("date", { ascending: false }).limit(5),
+      supabase.from("transactions").select("*").order("date", { ascending: false }).limit(5),
     ),
-    readRows<Alert>(supabase.from("alerts").select("*").eq("user_id", userId).eq("is_active", true)),
+    readRows<Alert>(supabase.from("alerts").select("*").eq("is_active", true)),
+    readRows<Allocation>(supabase.from("allocations").select("*")),
+    readRows<Pick<MacroIndicatorRow, "indicator" | "value" | "date" | "source">>(
+      supabase.from("macro_indicators").select("indicator,value,date,source").order("date", { ascending: false }),
+    ),
   ]);
-  const deviations = book.ok ? deviationsForSnapshot(book.data.snapshot, book.data.allocations) : [];
+
+  if (!portfolio.ok && !preview) return <SchemaNotice missing={portfolio.missingSchema} />;
+
+  const basket = portfolio.ok ? await loadBasket(supabase) : null;
+  const deviations =
+    portfolio.ok && allocationRows.ok ? deviationsForSnapshot(portfolio.data, allocationRows.data) : [];
+  const canSync = portfolio.ok && allocationRows.ok;
+  const saved = canSync ? await syncAllocationDeviationAlerts(supabase, deviations) : null;
+  const saveState = !canSync || saved == null || saved.ok
+    ? "saved"
+    : saved.missingSchema
+      ? "missing"
+      : "failed";
+  const macro = macroRows.ok ? presentMacro(macroRows.data) : null;
   const emptyBook =
-    (!book.ok || book.data.snapshot.holdings.length === 0) && transactions.ok && transactions.data.length === 0;
-  const symbols = new Map((book.ok ? book.data.snapshot.holdings : []).map((holding) => [holding.id, holding.symbol]));
+    portfolio.ok &&
+    transactions.ok &&
+    portfolio.data.holdings.length === 0 &&
+    transactions.data.length === 0;
+  const symbols = new Map(
+    (portfolio.ok ? portfolio.data.holdings : []).map((holding) => [holding.id, holding.symbol]),
+  );
+  const claims = portfolio.ok && !preview && !emptyBook ? await supabase.auth.getClaims() : null;
+  const userId = userIdFromClaims(claims?.data?.claims);
   const today = todayKey();
-  const stored =
-    !preview && basket?.ok && basket.data.rows.length > 0 ? await syncBookClose(supabase, userId, basket.data) : null;
-  const liveTotal = basket?.ok ? basket.data.totalValue : book.ok ? book.data.snapshot.totalValue : 0;
-  const move = stored ? sincePriorClose(stored.totals, today, liveTotal) : null;
-  const series = stored ? performanceSeries(stored.totals, today, liveTotal) : [];
+  const book =
+    userId && basket?.ok && basket.data.rows.length > 0
+      ? await syncBookClose(supabase, userId, basket.data)
+      : null;
+  const liveTotal = basket?.ok ? basket.data.totalValue : portfolio.ok ? portfolio.data.totalValue : 0;
+  const move = book ? sincePriorClose(book.totals, today, liveTotal) : null;
+  const series = book ? performanceSeries(book.totals, today, liveTotal) : [];
   const source =
-    preview || emptyBook || !book.ok
+    preview || emptyBook || !portfolio.ok
       ? sampleOverviewSource(preview ? "preview" : "empty")
       : liveOverviewSource({
-          totalValue: book.data.snapshot.totalValue,
-          holdingsCount: book.data.snapshot.holdings.length,
+          totalValue: portfolio.data.totalValue,
+          holdingsCount: portfolio.data.holdings.length,
           totalAbsolute: basket?.ok ? basket.data.totalAbsolute : null,
           totalPercent: basket?.ok ? basket.data.totalPercent : null,
           todayAbsolute: move?.absolute ?? null,
           todayPercent: move?.percent ?? null,
           series: series.map((point) => ({ at: point.day, value: point.value })),
-          seriesCaption: stored?.caption ?? "هنوز ارزش شبانه‌ای ثبت نشده است.",
-          byType: book.data.snapshot.byType,
+          seriesCaption: book?.caption ?? "هنوز ارزش شبانه‌ای ثبت نشده است.",
+          byType: portfolio.data.byType,
           alerts: alerts.ok ? alerts.data : null,
           transactions: transactions.ok ? transactions.data : null,
           symbols,
@@ -67,7 +93,7 @@ export default async function OverviewPage({
     <div>
       <PageHeader
         title="نمای کلی"
-        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. سود امروز از بستن شب قبل می‌آید و باز کردن این صفحه منتظر قیمت جدید نمی‌ماند."
+        description="ارزش دفتر از آخرین قیمت ثبت‌شده حساب می‌شود. سود امروز وقتی قیمت دیروز موجود باشد نشان داده می‌شود."
         action={<RefreshPricesButton returnTo="/" />}
       />
       <OverviewDashboard view={view} />
@@ -75,7 +101,18 @@ export default async function OverviewPage({
         {view.sample ? (
           <p className="mb-3 text-xs text-muted-foreground">وضعیت واقعی دفتر، جدا از اعداد نمونه بالا</p>
         ) : null}
-        <AllocationDeviationPanel deviations={deviations} ready={book.ok} />
+        <AllocationDeviationPanel
+          deviations={deviations}
+          ready={allocationRows.ok}
+          saveState={saveState}
+        />
+      </div>
+      <div className="mt-4">
+        <MacroPanel
+          cards={macro?.cards ?? []}
+          empty={macro?.empty ?? false}
+          schemaIssue={macroRows.ok ? null : macroRows.missingSchema}
+        />
       </div>
     </div>
   );

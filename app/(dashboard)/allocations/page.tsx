@@ -63,13 +63,13 @@ export default async function AllocationsPage({
               </select>
             </Field>
             <Field label="حداقل درصد">
-              <input name="min_percent" required inputMode="decimal" dir="ltr" className="field-input text-start" />
+              <input name="min_percent" required inputMode="decimal" dir="ltr" className="field-input text-left" />
             </Field>
             <Field label="حداکثر درصد">
-              <input name="max_percent" required inputMode="decimal" dir="ltr" className="field-input text-start" />
+              <input name="max_percent" required inputMode="decimal" dir="ltr" className="field-input text-left" />
             </Field>
             <Field label="نسخهٔ فرمول">
-              <input name="formula_version" required defaultValue="v1" maxLength={40} dir="ltr" className="field-input text-start" />
+              <input name="formula_version" required defaultValue="v1" maxLength={40} dir="ltr" className="field-input text-left" />
             </Field>
             <SubmitButton>بستن نسخهٔ قبلی و ثبت جدید</SubmitButton>
           </form>

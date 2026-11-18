@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { primaryControlClass } from "@/components/chrome";
 
 function keyBytes(value: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
@@ -66,7 +65,7 @@ export function EnablePushButton({ publicKey, registered }: { publicKey: string;
         type="button"
         onClick={enable}
         disabled={pending}
-        className={primaryControlClass}
+        className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
       >
         {pending ? "در حال فعال‌سازی" : "فعال کردن اعلان مرورگر"}
       </button>

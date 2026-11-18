@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHoldingSeries, cashFlows, dayKey, shiftDays, sliceGrowth } from "@/lib/finance/holding-growth";
+import { buildHoldingSeries, dayKey, shiftDays, sliceGrowth } from "@/lib/finance/holding-growth";
 
 describe("dayKey", () => {
   it("keeps a date-only value", () => {
@@ -17,61 +17,81 @@ describe("shiftDays", () => {
   });
 });
 
-const opening = {
-  day: "2026-01-01",
-  side: "buy" as const,
-  quantity: 2,
-  price: 80,
-  fee: 0,
-};
-
 describe("buildHoldingSeries", () => {
-  it("values the shares held on that day", () => {
-    expect(
-      buildHoldingSeries({
-        lots: [opening],
-        quotes: [
-          { at: "2026-02-01", price: 100 },
-          { at: "2026-02-02", price: 150 },
-        ],
-      }),
-    ).toEqual([
-      { at: "2026-02-01", value: 200 },
-      { at: "2026-02-02", value: 300 },
+  it("keeps the market price when the average is corrected", () => {
+    const series = buildHoldingSeries({
+      quantity: 10,
+      trades: [
+        { at: "2026-01-01", type: "buy", qty: 10, price: 100 },
+        { at: "2026-01-10", type: "adjust", qty: 10, price: 80 },
+      ],
+      quotes: [
+        { at: "2026-01-01", price: 100 },
+        { at: "2026-01-10", price: 140 },
+      ],
+    });
+
+    expect(series.points).toEqual([
+      { at: "2026-01-01", value: 1000 },
+      { at: "2026-01-10", value: 1400 },
     ]);
   });
 
-  it("does not rewrite days before a purchase", () => {
-    expect(
-      buildHoldingSeries({
-        lots: [{ day: "2026-02-02", side: "buy", quantity: 2, price: 150, fee: 0 }],
-        quotes: [
-          { at: "2026-02-01", price: 100 },
-          { at: "2026-02-02", price: 150 },
-        ],
-      }),
-    ).toEqual([{ at: "2026-02-02", value: 300 }]);
+  it("marks the position to market from trades and later quotes", () => {
+    const series = buildHoldingSeries({
+      quantity: 6,
+      trades: [
+        { at: "2026-01-01", type: "buy", qty: 10, price: 100 },
+        { at: "2026-01-10", type: "sell", qty: 4, price: 150 },
+      ],
+      quotes: [
+        { at: "2026-01-01", price: 100 },
+        { at: "2026-01-05", price: 120 },
+        { at: "2026-01-10", price: 140 },
+        { at: "2026-01-20", price: 200 },
+      ],
+    });
+
+    expect(series.basis).toBe("trades");
+    expect(series.points).toEqual([
+      { at: "2026-01-01", value: 1000 },
+      { at: "2026-01-05", value: 1200 },
+      { at: "2026-01-10", value: 840 },
+      { at: "2026-01-20", value: 1200 },
+    ]);
   });
 
-  it("keeps the last price stored for a day", () => {
-    expect(
-      buildHoldingSeries({
-        lots: [{ ...opening, quantity: 1 }],
-        quotes: [
-          { at: "2026-02-01T08:00:00.000Z", price: 100 },
-          { at: "2026-02-01T18:00:00.000Z", price: 140 },
-        ],
-      }),
-    ).toEqual([{ at: "2026-02-01", value: 140 }]);
+  it("drops to zero after the position is closed and does not keep drawing zeros", () => {
+    const series = buildHoldingSeries({
+      quantity: 0,
+      trades: [
+        { at: "2026-01-01", type: "buy", qty: 2, price: 50 },
+        { at: "2026-01-03", type: "sell", qty: 2, price: 80 },
+      ],
+      quotes: [
+        { at: "2026-01-04", price: 90 },
+        { at: "2026-01-05", price: 95 },
+      ],
+    });
+
+    expect(series.points.map((point) => point.value)).toEqual([100, 0]);
   });
 
-  it("returns no points when nothing is held", () => {
-    expect(
-      buildHoldingSeries({
-        lots: [],
-        quotes: [{ at: "2026-02-01", price: 100 }],
-      }),
-    ).toEqual([]);
+  it("uses the current quantity when there are no trades", () => {
+    const series = buildHoldingSeries({
+      quantity: 2,
+      trades: [],
+      quotes: [
+        { at: "2026-02-01", price: 100 },
+        { at: "2026-02-02", price: 150 },
+      ],
+    });
+
+    expect(series.basis).toBe("quantity");
+    expect(series.points).toEqual([
+      { at: "2026-02-01", value: 200 },
+      { at: "2026-02-02", value: 300 },
+    ]);
   });
 });
 
@@ -94,18 +114,6 @@ describe("sliceGrowth", () => {
     const slice = sliceGrowth(points, null, "2026-01-20");
     expect(slice.startValue).toBe(1000);
     expect(slice.changePercent).toBe(20);
-  });
-
-  it("keeps a purchase inside the window out of the price change", () => {
-    const points = [
-      { at: "2026-02-01", value: 200 },
-      { at: "2026-02-02", value: 600 },
-    ];
-    const slice = sliceGrowth(points, null, "2026-02-02", cashFlows([
-      { day: "2026-02-02", side: "buy", quantity: 2, price: 150, fee: 0 },
-    ]));
-    expect(slice.flow).toBe(300);
-    expect(slice.change).toBe(100);
   });
 
   it("returns an empty slice when nothing is known", () => {

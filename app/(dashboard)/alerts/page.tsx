@@ -1,38 +1,16 @@
 import type { Metadata } from "next";
-import {
-  deleteManualAlert,
-  linkBaleChat,
-  retryAlertDelivery,
-  setAlertFrequencies,
-  setBaleChatId,
-} from "@/app/(dashboard)/alerts/actions";
+import { AlertRow } from "@/components/dashboard/alert-row";
+import { EmptyState, Field, Notice, PageHeader, Panel, SchemaNotice, SubmitButton, errorMessage } from "@/components/chrome";
+import { createAlert, linkBaleChat, retryAlertDelivery, setAlertActive, setAlertFrequency, setBaleChatId } from "@/app/(dashboard)/alerts/actions";
 import { EnablePushButton } from "@/components/enable-push-button";
-import {
-  Field,
-  Notice,
-  PageHeader,
-  Panel,
-  SchemaNotice,
-  SubmitButton,
-  errorMessage,
-  quietControlClass,
-} from "@/components/chrome";
 import { formatNumber } from "@/lib/finance/format";
-import { alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
+import { alertChannelLabels, alertKindLabels, notifyFrequencyLabels } from "@/lib/finance/labels";
 import { readRows } from "@/lib/finance/queries";
-import {
-  notifyFrequencies,
-  type Alert,
-  type AlertFrequency,
-  type AlertKind,
-  type PushSubscriptionRecord,
-  type UserSettings,
-} from "@/lib/finance/types";
+import { alertChannels, alertKinds, notifyFrequencies, type Alert, type AlertFrequency, type PushSubscriptionRecord, type UserSettings } from "@/lib/finance/types";
+import { describeAlert } from "@/lib/overview/live";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "هشدارها" };
-
-const deliveryKinds = ["allocation_deviation", "codal_notice", "fis_change"] as const satisfies readonly AlertKind[];
 
 function deliveryStatus(value: string | undefined): string | null {
   if (!value) return null;
@@ -49,11 +27,9 @@ export default async function AlertsPage({
   const params = await searchParams;
   const supabase = await createClient();
   const [alerts, frequencies, subscriptions, settings] = await Promise.all([
-    readRows<Alert>(supabase.from("alerts").select("*").order("created_at", { ascending: false })),
+    readRows<Alert>(supabase.from("alerts").select("*").order("rule")),
     readRows<AlertFrequency>(supabase.from("alert_frequencies").select("*")),
-    readRows<PushSubscriptionRecord>(
-      supabase.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at"),
-    ),
+    readRows<PushSubscriptionRecord>(supabase.from("push_subscriptions").select("id, user_id, endpoint, p256dh, auth, created_at")),
     readRows<UserSettings>(supabase.from("settings").select("user_id, bale_chat_id, created_at, updated_at")),
   ]);
   const frequencyByKind = new Map((frequencies.ok ? frequencies.data : []).map((row) => [row.kind, row]));
@@ -61,70 +37,119 @@ export default async function AlertsPage({
   const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
   const baleReady = Boolean(process.env.BALE_BOT_TOKEN?.trim());
   const baleChatId = settings.ok ? settings.data[0]?.bale_chat_id ?? null : null;
-  const openAlerts = alerts.ok ? alerts.data.filter((alert) => alert.kind !== "rule" && alert.is_active) : [];
-  const manualAlerts = alerts.ok ? alerts.data.filter((alert) => alert.kind === "rule") : [];
 
   return (
     <div>
       <PageHeader
         title="هشدارها"
-        description="انحراف تخصیص، خبر کدال و تغییر ارزیابی روی سرور بررسی می‌شوند و با تناوبی که اینجا می‌گذارید به بله و اعلان مرورگر می‌روند، حتی اگر این صفحه باز نباشد."
+        description="قاعده‌هایی که خودتان می‌نویسید. انحراف تخصیص جداگانه در نمای کلی نشان داده می‌شود و فقط یک جملهٔ پیشنهادی است؛ دکمه‌ای برای خرید یا فروش ندارد."
       />
       <Notice message={errorMessage(params.error)} />
       {deliveryNote ? <p className="mb-4 text-sm leading-7 text-muted-foreground">{deliveryNote}</p> : null}
-
-      {!alerts.ok ? <SchemaNotice missing={alerts.missingSchema} /> : null}
-
-      {frequencies.ok && subscriptions.ok && settings.ok ? (
-        <div className="grid gap-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title="اعلان مرورگر">
-              <EnablePushButton publicKey={vapidPublicKey} registered={subscriptions.data.length} />
-              <form action={retryAlertDelivery} className="mt-4">
-                <button type="submit" className={quietControlClass}>
-                  ارسال هشدارهای معوق
+      {!alerts.ok ? (
+        <SchemaNotice missing={alerts.missingSchema} />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <Panel title="قواعد">
+            {alerts.data.filter((alert) => alert.kind !== "allocation_deviation").length === 0 ? (
+              <EmptyState>هشداری تعریف نشده است.</EmptyState>
+            ) : (
+              <ul className="grid gap-3">
+                {alerts.data
+                  .filter((alert) => alert.kind !== "allocation_deviation")
+                  .map((alert) => {
+                    const summary = describeAlert(alert);
+                    return (
+                      <AlertRow
+                        key={alert.id}
+                        title={summary.title}
+                        meta={`${summary.meta} · ${alert.is_active ? "فعال" : "خاموش"} · ${alert.sent ? "اعلان ارسال شد" : "اعلان در انتظار"}`}
+                        active={alert.is_active}
+                        action={
+                          <form action={setAlertActive}>
+                            <input type="hidden" name="id" value={alert.id} />
+                            <input type="hidden" name="is_active" value={alert.is_active ? "false" : "true"} />
+                            <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs">
+                              {alert.is_active ? "خاموش" : "روشن"}
+                            </button>
+                          </form>
+                        }
+                      />
+                    );
+                  })}
+              </ul>
+            )}
+          </Panel>
+          <Panel title="هشدار جدید">
+            <form action={createAlert} className="grid gap-3">
+              <Field label="قاعده">
+                <input name="rule" required maxLength={200} className="field-input" placeholder="وزن طلا از حداکثر گذشت" />
+              </Field>
+              <Field label="آستانه">
+                <input name="threshold" required inputMode="decimal" dir="ltr" className="field-input text-left" />
+              </Field>
+              <Field label="کانال">
+                <select name="channel" required defaultValue="in_app" className="field-input">
+                  {alertChannels.map((channel) => (
+                    <option key={channel} value={channel}>
+                      {alertChannelLabels[channel]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="یادداشت تناوب">
+                <select name="frequency" required defaultValue="daily" className="field-input">
+                  {notifyFrequencies.map((frequency) => (
+                    <option key={frequency} value={frequency}>
+                      {notifyFrequencyLabels[frequency]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <p className="text-xs leading-6 text-muted-foreground">
+                این متن فقط روی کارت قاعده دیده می‌شود. زمان اعلان از تناوب نوع هشدار در بخش پایین پیروی می‌کند.
+              </p>
+              <SubmitButton>ثبت هشدار</SubmitButton>
+            </form>
+          </Panel>
+        </div>
+      )}
+      <div className="mt-4">
+        {frequencies.ok && subscriptions.ok && settings.ok ? (
+          <Panel title="ارسال هشدار">
+            <p className="mb-4 text-sm leading-7 text-muted-foreground">
+              هشدار تازه به اعلان مرورگر و، اگر شناسه بله ذخیره شده باشد، به بازوی بله می‌رود.
+              قبل از ارسال، تناوب همان نوع هشدار چک می‌شود. اگر یکی از مسیرهای فعال پیام را نپذیرد، هشدار ارسال‌نشده می‌ماند.
+            </p>
+            <EnablePushButton publicKey={vapidPublicKey} registered={subscriptions.data.length} />
+            <div className="mt-4 border-t border-line pt-4">
+              <h3 className="mb-2 text-sm font-medium">بازو بله</h3>
+              <p className="mb-3 text-sm leading-7 text-muted-foreground">
+                در بله با @botfather بازو بسازید و توکن را در BALE_BOT_TOKEN بگذارید. بعد در همان بازو یک پیام بفرستید و شناسه را بخوانید. عدد ابتدای توکن شناسهٔ گفتگو نیست.
+                {baleChatId ? ` شناسه ذخیره‌شده: ${baleChatId}` : " هنوز شناسه‌ای ذخیره نشده است."}
+              </p>
+              {baleReady ? null : (
+                <p className="mb-3 text-sm leading-7 text-muted-foreground">توکن بازو هنوز در سرور نیست. بعد از گذاشتن توکن، سرور توسعه را یک‌بار دوباره اجرا کنید.</p>
+              )}
+              <form action={linkBaleChat}>
+                <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm">
+                  خواندن شناسه از بله
                 </button>
               </form>
-            </Panel>
-            <Panel title="بله">
-              {baleReady ? (
-                <div className="grid gap-3">
-                  <p className="text-sm leading-7 text-muted-foreground">
-                    شناسه گفتگوی خودتان در بازو.
-                    {baleChatId ? ` ذخیره‌شده: ${baleChatId}` : ""}
-                  </p>
-                  <form action={setBaleChatId} className="grid gap-3">
-                    <Field label="شناسه گفتگو">
-                      <input
-                        name="chat_id"
-                        required
-                        inputMode="numeric"
-                        dir="ltr"
-                        defaultValue={baleChatId ?? ""}
-                        className="field-input text-start"
-                      />
-                    </Field>
-                    <SubmitButton>ذخیره شناسه</SubmitButton>
-                  </form>
-                  <form action={linkBaleChat}>
-                    <button type="submit" className={quietControlClass}>
-                      خواندن از بله
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <p className="text-sm leading-7 text-muted-foreground">توکن بازو در سرور تنظیم نشده است.</p>
-              )}
-            </Panel>
-          </div>
-
-          <Panel title="تناوب">
-            <form action={setAlertFrequencies} className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                {deliveryKinds.map((kind) => (
-                  <Field key={kind} label={alertKindLabels[kind]}>
+              <form action={setBaleChatId} className="mt-3 grid gap-3">
+                <Field label="شناسه گفتگو">
+                  <input name="chat_id" required inputMode="numeric" dir="ltr" defaultValue={baleChatId ?? ""} className="field-input text-left" />
+                </Field>
+                <SubmitButton>ذخیره شناسه بله</SubmitButton>
+              </form>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {alertKinds.map((kind) => (
+                <form key={kind} action={setAlertFrequency} className="grid gap-3">
+                  <input type="hidden" name="kind" value={kind} />
+                  <Field label={alertKindLabels[kind]}>
                     <select
-                      name={kind}
+                      name="frequency"
                       defaultValue={frequencyByKind.get(kind)?.frequency ?? "immediate"}
                       className="field-input"
                     >
@@ -135,56 +160,30 @@ export default async function AlertsPage({
                       ))}
                     </select>
                   </Field>
-                ))}
-              </div>
-              <SubmitButton>ذخیره تناوب</SubmitButton>
+                  <SubmitButton>ذخیره تناوب</SubmitButton>
+                </form>
+              ))}
+            </div>
+            <form action={retryAlertDelivery} className="mt-4">
+              <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm">
+                ارسال هشدارهای معوق
+              </button>
             </form>
           </Panel>
-
-          {openAlerts.length > 0 ? (
-            <Panel title="هشدارهای باز">
-              <ul className="grid gap-3">
-                {openAlerts.map((alert) => (
-                  <li key={alert.id} className="border-b border-line pb-3 text-sm last:border-b-0 last:pb-0">
-                    <p className="text-muted-foreground">{alertKindLabels[alert.kind]}</p>
-                    <p className="mt-1 leading-7">{alert.message || alert.rule}</p>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-          ) : null}
-
-          {manualAlerts.length > 0 ? (
-            <Panel title="قاعده‌های قبلی">
-              <ul className="grid gap-3">
-                {manualAlerts.map((alert) => (
-                  <li key={alert.id} className="flex items-center justify-between gap-3 text-sm">
-                    <p>{alert.message || alert.rule}</p>
-                    <form action={deleteManualAlert}>
-                      <input type="hidden" name="id" value={alert.id} />
-                      <button type="submit" className={quietControlClass}>
-                        حذف
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
-          ) : null}
-        </div>
-      ) : (
-        <SchemaNotice
-          missing={
-            !frequencies.ok
-              ? frequencies.missingSchema
-              : !subscriptions.ok
-                ? subscriptions.missingSchema
-                : !settings.ok
-                  ? settings.missingSchema
-                  : false
-          }
-        />
-      )}
+        ) : (
+          <SchemaNotice
+            missing={
+              !frequencies.ok
+                ? frequencies.missingSchema
+                : !subscriptions.ok
+                  ? subscriptions.missingSchema
+                  : !settings.ok
+                    ? settings.missingSchema
+                    : false
+            }
+          />
+        )}
+      </div>
     </div>
   );
 }

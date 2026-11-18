@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { quietControlClass } from "@/components/chrome";
 
 export function InterpretReportButton({ reportId }: { reportId: string }) {
   const router = useRouter();
@@ -38,7 +37,7 @@ export function InterpretReportButton({ reportId }: { reportId: string }) {
         type="button"
         onClick={interpret}
         disabled={pending}
-        className={quietControlClass}
+        className="w-fit rounded-xl border border-line bg-card px-4 py-2.5 text-sm font-medium hover:bg-accent-soft disabled:opacity-60"
       >
         {pending ? "در حال تفسیر…" : "تفسیر پنج‌خطی همین گزارش"}
       </button>
