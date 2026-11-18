@@ -1,6 +1,10 @@
 const tgjuTopics: Record<string, string> = {
   price_dollar_rl: "نرخ دلار",
   geram18: "طلای ۱۸ عیار",
+  sekee: "سکه امامی",
+  sekeb: "سکه بهار آزادی",
+  nim: "نیم سکه",
+  rob: "ربع سکه",
   "crypto-bitcoin-irr": "بیت‌کوین",
   "crypto-bitcoin-irr/usd": "بیت‌کوین به دلار، از تقسیم قیمت ریالی TGJU بر نرخ دلار",
 };

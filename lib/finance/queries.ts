@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { effectiveAllocationClass } from "@/lib/finance/allocation-class";
 import { toNumber } from "@/lib/finance/format";
-import { instrumentForAsset, latestQuote } from "@/lib/finance/prices/match";
+import { instrumentForAsset, latestQuote, liveSymbols } from "@/lib/finance/prices/match";
 import { amountInRial, quoteInUnit, type PriceUnit } from "@/lib/finance/prices/unit";
 import { buildBasket, buildPortfolio, latestPrices } from "@/lib/finance/portfolio";
 import type {
@@ -10,6 +10,8 @@ import type {
   Json,
   PortfolioSnapshot,
   Price,
+  LedgerAccount,
+  LedgerPosition,
   StockFundamentals,
 } from "@/lib/finance/types";
 import type { Database } from "@/lib/supabase/database.types";
@@ -20,7 +22,7 @@ export type LoadResult<T> =
   | { ok: true; data: T }
   | { ok: false; missingSchema: boolean };
 
-export function missingSchema(error: { code?: string; message?: string } | null): boolean {
+function missingSchema(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
   return (
     error.code === "PGRST205" ||
@@ -40,9 +42,26 @@ export async function readRows<T>(
   return { ok: true, data: data ?? [] };
 }
 
-const liveSymbols = ["USD", "GOLD18", "BTC"] as const;
+export type Book = {
+  assets: Asset[];
+  allocations: Allocation[];
+  prices: Price[];
+  snapshot: PortfolioSnapshot;
+};
 
 export async function loadLatestPrices(
+  supabase: FinanceClient,
+  assets: Pick<Asset, "type" | "symbol">[],
+  userId?: string,
+): Promise<LoadResult<Price[]>> {
+  let view = supabase.from("latest_prices").select("*");
+  if (userId) view = view.eq("user_id", userId);
+  const latest = await readRows<Price>(view);
+  if (latest.ok || !latest.missingSchema) return latest;
+  return loadLatestPricesBySymbol(supabase, assets, userId);
+}
+
+async function loadLatestPricesBySymbol(
   supabase: FinanceClient,
   assets: Pick<Asset, "type" | "symbol">[],
   userId?: string,
@@ -57,7 +76,11 @@ export async function loadLatestPrices(
   const [assetResults, liveResults] = await Promise.all([
     Promise.all(
       [...assetKeys.values()].map((key) => {
-        let query = supabase.from("prices").select("*").eq("asset_type", key.type).eq("symbol", key.symbol);
+        let query = supabase
+          .from("prices")
+          .select("*")
+          .eq("asset_type", key.type)
+          .eq("symbol", key.symbol);
         if (userId) query = query.eq("user_id", userId);
         return query.order("timestamp", { ascending: false }).limit(1).maybeSingle();
       }),
@@ -84,23 +107,20 @@ export async function loadLatestPrices(
   return { ok: true, data: [...byId.values()] };
 }
 
-export async function loadPortfolio(
-  supabase: FinanceClient,
-  userId?: string,
-): Promise<LoadResult<PortfolioSnapshot>> {
+export async function loadBook(supabase: FinanceClient, userId?: string): Promise<LoadResult<Book>> {
   let assetsQuery = supabase.from("assets").select("*");
   let allocationsQuery = supabase.from("allocations").select("*").order("valid_from", { ascending: false });
   if (userId) {
     assetsQuery = assetsQuery.eq("user_id", userId);
     allocationsQuery = allocationsQuery.eq("user_id", userId);
   }
+
   const [assets, allocations] = await Promise.all([
     readRows<Asset>(assetsQuery),
     readRows<Allocation>(allocationsQuery),
   ]);
-
-  const firstFailure = [assets, allocations].find((result) => !result.ok);
-  if (firstFailure && !firstFailure.ok) return firstFailure;
+  const failed = [assets, allocations].find((result) => !result.ok);
+  if (failed && !failed.ok) return failed;
   if (!assets.ok || !allocations.ok) return { ok: false, missingSchema: false };
 
   const prices = await loadLatestPrices(supabase, assets.data, userId);
@@ -108,19 +128,29 @@ export async function loadPortfolio(
 
   return {
     ok: true,
-    data: buildPortfolio(assets.data, prices.data, allocations.data),
+    data: {
+      assets: assets.data,
+      allocations: allocations.data,
+      prices: prices.data,
+      snapshot: buildPortfolio(assets.data, prices.data, allocations.data),
+    },
   };
+}
+
+export async function loadPortfolio(
+  supabase: FinanceClient,
+): Promise<LoadResult<PortfolioSnapshot>> {
+  const book = await loadBook(supabase);
+  if (!book.ok) return book;
+  return { ok: true, data: book.data.snapshot };
 }
 
 export async function loadBasket(
   supabase: FinanceClient,
-  userId?: string,
 ): Promise<LoadResult<ReturnType<typeof buildBasket>>> {
-  let assetsQuery = supabase.from("assets").select("*").order("symbol", { ascending: true });
-  if (userId) assetsQuery = assetsQuery.eq("user_id", userId);
-  const assets = await readRows<Asset>(assetsQuery);
+  const assets = await readRows<Asset>(supabase.from("assets").select("*").order("symbol", { ascending: true }));
   if (!assets.ok) return assets;
-  const prices = await loadLatestPrices(supabase, assets.data, userId);
+  const prices = await loadLatestPrices(supabase, assets.data);
   const priceRows = prices.ok ? prices.data : [];
   const quotes = latestPrices(priceRows);
   const usd = latestQuote(priceRows, "USD");
@@ -158,6 +188,7 @@ export async function loadBasket(
           priceOrigin: useLive ? "live" : manual != null ? "manual" : "none",
           allocationClass: effectiveAllocationClass(asset),
           allocationClassSource: asset.allocation_class_source === "manual" ? "manual" : "auto",
+          acquiredOn: asset.acquired_on,
         };
       }),
     ),
@@ -171,12 +202,71 @@ function listedInUnit(priceRial: number, unit: PriceUnit, usdRial: number | null
   return priceRial / usdRial;
 }
 
+export async function loadLedger(supabase: FinanceClient): Promise<{
+  ready: boolean;
+  accounts: LedgerAccount[];
+  positions: Pick<LedgerPosition, "account_id" | "asset_id" | "quantity">[];
+}> {
+  const accounts = await supabase.from("accounts").select("*").order("name", { ascending: true });
+  if (accounts.error) {
+    if (!missingSchema(accounts.error)) console.error(accounts.error);
+    return { ready: false, accounts: [], positions: [] };
+  }
+  const positions = await supabase.from("positions").select("account_id,asset_id,quantity").gt("quantity", 0);
+  if (positions.error) {
+    console.error(positions.error);
+    return { ready: true, accounts: accounts.data ?? [], positions: [] };
+  }
+  return { ready: true, accounts: accounts.data ?? [], positions: positions.data ?? [] };
+}
+
 export async function loadStockFundamentals(
   supabase: FinanceClient,
 ): Promise<LoadResult<StockFundamentals[]>> {
   return readRows<StockFundamentals>(
     supabase.from("stock_fundamentals").select("*").order("symbol", { ascending: true }),
   );
+}
+
+export async function loadStockHistory(
+  supabase: FinanceClient,
+  symbols: string[],
+): Promise<LoadResult<{
+  periods: { symbol: string; period: string; kind: "interim" | "annual"; tracing_no: string; revision_of: string | null }[];
+  months: { symbol: string; period: string; sales_value: StockFundamentals["pe"] }[];
+}>> {
+  if (symbols.length === 0) return { ok: true, data: { periods: [], months: [] } };
+  const periods = await supabase
+    .from("stock_periods")
+    .select("symbol, period, kind, tracing_no, revision_of")
+    .in("symbol", symbols)
+    .order("period", { ascending: false });
+  if (periods.error) {
+    const missing = missingSchema(periods.error);
+    if (!missing) console.error(periods.error);
+    return { ok: false, missingSchema: missing };
+  }
+  const months = await supabase
+    .from("stock_monthly")
+    .select("symbol, period, sales_value")
+    .in("symbol", symbols)
+    .order("period", { ascending: false });
+  if (months.error) {
+    const missing = missingSchema(months.error);
+    if (!missing) console.error(months.error);
+    return { ok: false, missingSchema: missing };
+  }
+  return {
+    ok: true,
+    data: {
+      periods: (periods.data ?? []).flatMap((row) => (
+        row.kind === "interim" || row.kind === "annual"
+          ? [{ symbol: row.symbol, period: row.period, kind: row.kind, tracing_no: row.tracing_no, revision_of: row.revision_of }]
+          : []
+      )),
+      months: months.data ?? [],
+    },
+  };
 }
 
 export async function loadLivePrices(supabase: FinanceClient): Promise<Price[]> {

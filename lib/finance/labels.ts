@@ -1,12 +1,10 @@
 import type {
-  AlertChannel,
   AlertKind,
   AllocationStatus,
   AssetType,
   ChatRole,
   NotifyFrequency,
   ReportType,
-  TransactionType,
 } from "@/lib/finance/types";
 
 export const assetTypeLabels: Record<AssetType, string> = {
@@ -19,14 +17,6 @@ export const assetTypeLabels: Record<AssetType, string> = {
   fund: "صندوق",
   loan: "وام",
   real_estate: "ملک",
-};
-
-export const transactionTypeLabels: Record<TransactionType, string> = {
-  buy: "خرید",
-  sell: "فروش",
-  deposit: "واریز",
-  withdraw: "برداشت",
-  adjust: "اصلاح میانگین",
 };
 
 export const reportTypeLabels: Record<ReportType, string> = {
@@ -53,12 +43,7 @@ export const alertKindLabels: Record<AlertKind, string> = {
   rule: "قاعدهٔ دستی",
   allocation_deviation: "انحراف تخصیص",
   codal_notice: "گزارش کدال",
-};
-
-export const alertChannelLabels: Record<AlertChannel, string> = {
-  in_app: "داخل برنامه",
-  bale: "بله",
-  push: "اعلان مرورگر",
+  fis_change: "تغییر ارزیابی",
 };
 
 export const notifyFrequencyLabels: Record<NotifyFrequency, string> = {

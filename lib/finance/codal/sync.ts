@@ -1,8 +1,10 @@
+import { publishSymbolFis } from "@/lib/finance/publish-fis";
+import { followSyncedStatement, interpretStoredFisChange } from "@/lib/finance/statement-follow";
 import { dispatchAlertNotifications } from "@/lib/notify/dispatch";
-import { userIdFromClaims } from "@/lib/supabase/env";
 import type { FinanceClient, LoadResult } from "@/lib/finance/queries";
+import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
 import { fetchListedQuote } from "@/lib/finance/prices/listed";
-import { fetchCodalLetters, fetchCodalReport } from "@/lib/finance/codal/fetch";
+import { fetchCodalDossier, fetchCodalReport } from "@/lib/finance/codal/fetch";
 import {
   CodalShapeError,
   assembleFundamentals,
@@ -12,16 +14,19 @@ import {
   parseMonthlySalesHtml,
   parseStatementHtml,
   periodMonthsFromTitle,
+  preferMonthlyDownloads,
   readSalesTrend,
-  selectMonthlyLetters,
-  selectStatementLetter,
+  type CodalLetter,
   type SalesPoint,
+  type StatementFigures,
 } from "@/lib/finance/codal/parse";
+import { monthFromPoint, periodFromStatement, type PlannedMonth, type PlannedPeriod } from "@/lib/finance/history";
+import { saveFundamentalHistory } from "@/lib/finance/history-store";
 import type { Numeric, StockFundamentals } from "@/lib/finance/types";
 
 const FRESH_OK_MS = 6 * 60 * 60 * 1000;
 const FRESH_ERROR_MS = 60 * 60 * 1000;
-const MONTHLY_LIMIT = 4;
+const MONTHLY_DOWNLOADS = 6;
 const LIST_FAILURE = "فهرست گزارش‌های کدال خوانده نشد. اگر ساختار سایت عوض شده باشد، پارس بعدی باید به‌روز شود.";
 
 export const CODAL_NOTICE_KIND = "codal_notice" as const;
@@ -63,44 +68,85 @@ function clip(value: string, max: number): string {
   return trimmed.length <= max ? trimmed : trimmed.slice(0, max);
 }
 
-async function readStatement(letter: Awaited<ReturnType<typeof selectStatementLetter>>): Promise<{
-  figures: { sales: number | null; netIncome: number | null; equity: number | null; periodEps: number | null };
+async function readStatement(letter: CodalLetter | null): Promise<{
+  figures: StatementFigures | null;
   notes: string[];
   source: string | null;
 }> {
-  const empty = { sales: null, netIncome: null, equity: null, periodEps: null };
-  if (!letter) return { figures: empty, notes: [], source: null };
+  if (!letter) return { figures: null, notes: [], source: null };
   const report = await fetchCodalReport(letter);
-  if (!report) return { figures: empty, notes: ["فایل صورت مالی کدال دریافت نشد."], source: null };
+  if (!report) return { figures: null, notes: ["فایل صورت مالی کدال دریافت نشد."], source: null };
   try {
-    const figures = parseStatementHtml(report.html);
-    return { figures, notes: [], source: report.source };
+    return { figures: parseStatementHtml(report.html), notes: [], source: report.source };
   } catch (error) {
     const message = error instanceof CodalShapeError ? error.message : "صورت مالی کدال خوانده نشد.";
-    return { figures: empty, notes: [message], source: report.source };
+    return { figures: null, notes: [message], source: report.source };
   }
 }
 
-async function readMonthlySales(letters: ReturnType<typeof selectMonthlyLetters>): Promise<{ points: SalesPoint[]; notes: string[] }> {
+async function readMonthlySales(letters: CodalLetter[]): Promise<{
+  points: SalesPoint[];
+  notes: string[];
+  stored: { point: SalesPoint; tracingNo: string; source: string }[];
+}> {
   const parsed = await Promise.all(
     letters.map(async (letter) => {
       const report = await fetchCodalReport(letter);
-      if (!report) return { point: null, note: "فایل گزارش ماهانه کدال دریافت نشد." };
+      if (!report) return { point: null, note: "فایل گزارش ماهانه کدال دریافت نشد.", tracingNo: String(letter.tracingNo), source: null as string | null };
       try {
-        return { point: parseMonthlySalesHtml(report.html, letter.title), note: null };
+        return { point: parseMonthlySalesHtml(report.html, letter.title), note: null, tracingNo: String(letter.tracingNo), source: report.source };
       } catch (error) {
         const message = error instanceof CodalShapeError ? error.message : "گزارش ماهانه کدال خوانده نشد.";
-        return { point: null, note: message };
+        return { point: null, note: message, tracingNo: String(letter.tracingNo), source: report.source };
       }
     }),
   );
   return {
     points: parsed.flatMap((item) => (item.point ? [item.point] : [])),
     notes: parsed.flatMap((item) => (item.note ? [item.note] : [])),
+    stored: parsed.flatMap((item) => (item.point && item.source ? [{ point: item.point, tracingNo: item.tracingNo, source: item.source }] : [])),
   };
 }
 
-async function mapPool<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
+async function rememberParsedHistory(
+  supabase: FinanceClient,
+  userId: string,
+  symbol: string,
+  input: {
+    statement: { letter: CodalLetter; letters: CodalLetter[]; figures: StatementFigures; source: string } | null;
+    months: { point: SalesPoint; tracingNo: string; source: string }[];
+  },
+): Promise<boolean> {
+  const periods: PlannedPeriod[] = [];
+  if (input.statement) {
+    const built = periodFromStatement(input.statement);
+    if (built.row) periods.push(built.row);
+  }
+  const months: PlannedMonth[] = [];
+  for (const item of input.months) {
+    const row = monthFromPoint({
+      period: item.point.period,
+      sales: item.point.sales,
+      tracingNo: item.tracingNo,
+      source: item.source,
+    });
+    if (row) months.push(row);
+  }
+  if (periods.length === 0 && months.length === 0) return false;
+  let periodStored = false;
+  if (periods.length > 0) {
+    const saved = await saveFundamentalHistory(supabase, userId, symbol, periods, []);
+    if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} history was not stored: ${saved.message}`);
+    periodStored = saved.ok;
+  }
+  if (months.length > 0) {
+    const saved = await saveFundamentalHistory(supabase, userId, symbol, [], months);
+    if (!saved.ok && !saved.missingSchema) console.error(`[codal] ${symbol} monthly history was not stored: ${saved.message}`);
+  }
+  return periodStored;
+}
+
+export async function mapPool<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
   let index = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (index < items.length) {
@@ -117,7 +163,12 @@ export async function syncSymbolFundamentals(
   userId: string,
   symbol: string,
 ): Promise<LoadResult<CodalSnapshot>> {
-  const existing = await supabase.from("stock_fundamentals").select("*").eq("symbol", symbol).maybeSingle();
+  const existing = await supabase
+    .from("stock_fundamentals")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("symbol", symbol)
+    .maybeSingle();
   if (existing.error) {
     console.error(existing.error);
     return { ok: false, missingSchema: schemaGap(existing.error) };
@@ -126,15 +177,18 @@ export async function syncSymbolFundamentals(
   const previousTrend = previous ? readSalesTrend(previous.sales_trend) : [];
   const previousEps = previous ? numericOrNull(previous.eps) : null;
 
-  const loaded = await fetchCodalLetters(symbol);
+  const dossier = await fetchCodalDossier(symbol);
   const shapeNotes: string[] = [];
-  let source = loaded?.source ?? "codal";
-  const letters = loaded?.letters ?? [];
-  if (!loaded) shapeNotes.push(LIST_FAILURE);
+  let source = dossier?.source ?? "codal";
+  if (!dossier) shapeNotes.push(LIST_FAILURE);
 
-  const newest = letters.slice().sort((left, right) => right.tracingNo - left.tracingNo)[0] ?? null;
-  const statementLetter = selectStatementLetter(letters);
-  const monthlyLetters = selectMonthlyLetters(letters, MONTHLY_LIMIT);
+  const newest = dossier?.newest ?? null;
+  const statementLetter = dossier?.statements.find((item) => item.role === "latest")?.letter ?? null;
+  const monthlyLetters = preferMonthlyDownloads(
+    dossier?.monthly ?? [],
+    previousTrend.map((point) => point.period),
+    MONTHLY_DOWNLOADS,
+  );
 
   const months = statementLetter ? periodMonthsFromTitle(statementLetter.title) : null;
   const [statementOutcome, monthlyOutcome, quote] = await Promise.all([
@@ -142,7 +196,10 @@ export async function syncSymbolFundamentals(
     readMonthlySales(monthlyLetters),
     fetchListedQuote(symbol),
   ]);
-  const { sales, netIncome, equity, periodEps } = statementOutcome.figures;
+  const sales = statementOutcome.figures?.sales ?? null;
+  const netIncome = statementOutcome.figures?.netIncome ?? null;
+  const equity = statementOutcome.figures?.equity ?? null;
+  const periodEps = statementOutcome.figures?.periodEps ?? null;
   shapeNotes.push(...statementOutcome.notes);
   if (monthlyOutcome.points.length === 0) shapeNotes.push(...monthlyOutcome.notes);
   if (statementOutcome.source) source = `${source}+${statementOutcome.source}`.slice(0, 80);
@@ -193,9 +250,37 @@ export async function syncSymbolFundamentals(
     return { ok: false, missingSchema: schemaGap(saved.error) };
   }
 
+  const periodStored = await rememberParsedHistory(supabase, userId, symbol, {
+    statement: statementLetter && statementOutcome.figures && statementOutcome.source
+      ? {
+        letter: statementLetter,
+        letters: dossier?.statementLetters ?? [statementLetter],
+        figures: statementOutcome.figures,
+        source: statementOutcome.source,
+      }
+      : null,
+    months: monthlyOutcome.stored,
+  });
+
+  let alerted = false;
+  try {
+    const followed = await followSyncedStatement({
+      supabase,
+      userId,
+      symbol,
+      previousTracing: previous?.latest_tracing_no ?? null,
+      newest,
+      periodStored,
+      publish: () => publishSymbolFis(supabase, userId, symbol),
+      interpret: (notice) => interpretStoredFisChange(userId, notice),
+    });
+    alerted = followed.alerted;
+  } catch (error) {
+    console.error(error);
+  }
+
   const previousTracing = previous?.latest_tracing_no ?? null;
   const nextTracing = newest ? String(newest.tracingNo) : null;
-  let alerted = false;
   if (previousTracing && nextTracing && previousTracing !== nextTracing && newest) {
     const rule = clip(`${adjusted ? "تعدیل سود" : "گزارش جدید"} ${symbol} · ${newest.tracingNo}`, 200);
     const lead = adjusted
@@ -203,6 +288,7 @@ export async function syncSymbolFundamentals(
       : `گزارش جدید کدال برای ${symbol} منتشر شد.`;
     const message = clip(`${lead} ${newest.title}`, 500);
     const inserted = await supabase.from("alerts").insert({
+      user_id: userId,
       kind: CODAL_NOTICE_KIND,
       asset_type: "stock",
       rule,
@@ -239,23 +325,18 @@ export async function syncSymbolFundamentals(
   };
 }
 
-export async function ensureStockFundamentals(supabase: FinanceClient): Promise<void> {
+export async function ensureStockFundamentals(supabase: FinanceClient, userId: string): Promise<void> {
   try {
-    const { data } = await supabase.auth.getClaims();
-    const userId = userIdFromClaims(data?.claims);
-    if (!userId) return;
-
-    const assets = await supabase.from("assets").select("symbol").eq("type", "stock");
-    if (assets.error || !assets.data?.length) {
-      if (assets.error) console.error(assets.error);
-      return;
-    }
-    const symbols = [...new Set(assets.data.map((row) => row.symbol.trim()).filter(Boolean))];
+    const { feeds } = await loadPriceFeeds(supabase, userId);
+    const symbols = [
+      ...new Set(feeds.filter((feed) => feed.codalEnabled && feed.codalAvailable).map((feed) => feed.symbol)),
+    ];
     if (symbols.length === 0) return;
 
     const stored = await supabase
       .from("stock_fundamentals")
       .select("symbol,fetched_at,shape_error")
+      .eq("user_id", userId)
       .in("symbol", symbols);
     if (stored.error) {
       console.error(stored.error);

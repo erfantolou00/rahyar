@@ -1,18 +1,32 @@
 import { toNumber } from "@/lib/finance/format";
 import type { FinanceClient } from "@/lib/finance/queries";
 import { isBtcQuotedInRial } from "@/lib/finance/prices/btc";
-import { liveSymbols } from "@/lib/finance/prices/match";
+import { loadPriceFeeds } from "@/lib/finance/prices/feed-store";
+import type { PriceFeed } from "@/lib/finance/prices/feeds";
+import { isLiveSymbol } from "@/lib/finance/prices/match";
 import { refreshAllPrices } from "@/lib/finance/prices/refresh";
+import { isListedSession } from "@/lib/finance/prices/session";
 
 const FRESH_FOR_MS = 15 * 60 * 1000;
 
-export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refreshed: boolean }> {
+export async function ensureLivePrices(
+  supabase: FinanceClient,
+  userId: string,
+  now = new Date(),
+): Promise<{ refreshed: boolean }> {
   try {
+    const { feeds } = await loadPriceFeeds(supabase, userId);
+    const market = feeds.filter((feed) => feed.priceEnabled && isLiveSymbol(feed.symbol));
+    const listed = feeds.filter((feed) => feed.priceEnabled && !isLiveSymbol(feed.symbol));
+    const symbols = market.map((feed) => feed.symbol);
+    if (symbols.length === 0 && listed.length === 0) return { refreshed: false };
+
     const latest = await Promise.all(
-      liveSymbols.map((symbol) =>
+      symbols.map((symbol) =>
         supabase
           .from("prices")
           .select("symbol,timestamp,price,source")
+          .eq("user_id", userId)
           .eq("symbol", symbol)
           .order("timestamp", { ascending: false })
           .limit(1)
@@ -34,17 +48,17 @@ export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refre
         source: row.data.source,
       });
     }
-    const fresh = liveSymbols.every((symbol) => {
+    const fresh = symbols.every((symbol) => {
       const stamp = newest.get(symbol)?.timestamp;
-      return stamp != null && Date.now() - new Date(stamp).getTime() < FRESH_FOR_MS;
+      return stamp != null && now.getTime() - new Date(stamp).getTime() < FRESH_FOR_MS;
     });
-    const btc = newest.get("BTC");
+    const btc = symbols.includes("BTC") ? newest.get("BTC") : undefined;
     const btcStillInRial = btc != null && isBtcQuotedInRial(btc.price);
     const btcFromTether = btc != null && /^(nobitex|binance|coingecko):/.test(btc.source);
-    const listedStale = await heldListedPricesStale(supabase);
-    const shouldRefresh = !fresh || btcStillInRial || (btc != null && !btcFromTether) || listedStale;
-    if (!shouldRefresh) return { refreshed: false };
-    const report = await refreshAllPrices(supabase);
+    const listedStale = isListedSession(now) ? await listedPricesStale(supabase, userId, listed, now) : false;
+    const marketStale = symbols.length > 0 && (!fresh || btcStillInRial || (btc != null && !btcFromTether));
+    if (!marketStale && !listedStale) return { refreshed: false };
+    const report = await refreshAllPrices(supabase, userId, now, feeds);
     return { refreshed: report.stored.length > 0 };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -53,30 +67,21 @@ export async function ensureLivePrices(supabase: FinanceClient): Promise<{ refre
   }
 }
 
-async function heldListedPricesStale(supabase: FinanceClient): Promise<boolean> {
-  const assets = await supabase.from("assets").select("type,symbol").in("type", ["stock", "fund"]);
-  if (assets.error) {
-    console.error(`[prices] listed read failed: ${assets.error.message}`);
-    return false;
-  }
-  const seen = new Set<string>();
-  const holdings = (assets.data ?? []).filter((row) => {
-    const symbol = row.symbol.trim();
-    if (!symbol) return false;
-    const key = `${row.type}:${symbol.toUpperCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  if (holdings.length === 0) return false;
-
+async function listedPricesStale(
+  supabase: FinanceClient,
+  userId: string,
+  feeds: PriceFeed[],
+  now: Date,
+): Promise<boolean> {
+  if (feeds.length === 0) return false;
   const newest = await Promise.all(
-    holdings.map((asset) =>
+    feeds.map((feed) =>
       supabase
         .from("prices")
         .select("timestamp")
-        .eq("asset_type", asset.type)
-        .eq("symbol", asset.symbol.trim())
+        .eq("user_id", userId)
+        .eq("asset_type", feed.assetType)
+        .eq("symbol", feed.symbol)
         .order("timestamp", { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -90,6 +95,6 @@ async function heldListedPricesStale(supabase: FinanceClient): Promise<boolean> 
 
   return newest.some((row) => {
     const stamp = row.data?.timestamp;
-    return stamp == null || Date.now() - new Date(stamp).getTime() >= FRESH_FOR_MS;
+    return stamp == null || now.getTime() - new Date(stamp).getTime() >= FRESH_FOR_MS;
   });
 }

@@ -10,14 +10,19 @@ export const assetTypes = [
   "real_estate",
 ] as const;
 
-export const transactionTypes = ["buy", "sell", "deposit", "withdraw", "adjust"] as const;
-export const entryTypes = ["buy", "sell", "deposit", "withdraw"] as const;
+export const tradeSides = ["buy", "sell"] as const;
+
+export const accountKinds = ["brokerage", "bullion", "fx", "wallet"] as const;
+
+export const transactionTypes = ["buy", "sell", "deposit", "withdraw", "transfer"] as const;
 
 export const reportTypes = ["daily", "weekly", "event", "period"] as const;
 
 export const chatRoles = ["user", "assistant", "system"] as const;
 
 export type AssetType = (typeof assetTypes)[number];
+export type TradeSide = (typeof tradeSides)[number];
+export type AccountKind = (typeof accountKinds)[number];
 export type TransactionType = (typeof transactionTypes)[number];
 export type ReportType = (typeof reportTypes)[number];
 export type ChatRole = (typeof chatRoles)[number];
@@ -40,6 +45,27 @@ export type Asset = {
   price_unit: PriceUnit;
   allocation_class: AssetType;
   allocation_class_source: "auto" | "manual";
+  acquired_on: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LedgerAccount = {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: AccountKind;
+  currency: PriceUnit;
+  created_at: string;
+};
+
+export type LedgerPosition = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  asset_id: string;
+  quantity: Numeric;
+  avg_buy_price: Numeric | null;
   created_at: string;
   updated_at: string;
 };
@@ -48,11 +74,38 @@ export type Transaction = {
   id: string;
   user_id: string;
   asset_id: string;
+  account_id: string;
+  counter_account_id: string | null;
+  cash_asset_id: string | null;
   type: TransactionType;
   qty: Numeric;
-  price: Numeric;
+  price: Numeric | null;
+  fee: Numeric;
+  price_unit: PriceUnit;
+  fx_rate: Numeric | null;
+  settles_cash: boolean;
+  origin: "opening" | "manual" | "confirmed";
+  idempotency_key: string | null;
   date: string;
   note: string | null;
+  created_at: string;
+};
+
+export type Trade = {
+  id: string;
+  user_id: string;
+  asset_id: string | null;
+  asset_type: AssetType;
+  symbol: string;
+  side: TradeSide;
+  quantity: Numeric;
+  price: Numeric | null;
+  fee: Numeric;
+  price_unit: PriceUnit;
+  traded_on: string;
+  settles_cash: boolean;
+  cash_asset_id: string | null;
+  created_at: string;
 };
 
 export type Price = {
@@ -63,6 +116,26 @@ export type Price = {
   price: Numeric;
   source: string;
   timestamp: string;
+};
+
+export type PriceFeedRow = {
+  user_id: string;
+  asset_type: AssetType;
+  symbol: string;
+  price_enabled: boolean;
+  codal_enabled: boolean;
+  added: boolean;
+  created_at: string;
+};
+
+export type PriceDay = {
+  user_id: string;
+  asset_type: AssetType;
+  symbol: string;
+  day: string;
+  price: Numeric;
+  source: string;
+  quoted_at: string;
 };
 
 export type Allocation = {
@@ -76,7 +149,7 @@ export type Allocation = {
   valid_to: string | null;
 };
 
-export const alertKinds = ["rule", "allocation_deviation", "codal_notice"] as const;
+export const alertKinds = ["rule", "allocation_deviation", "codal_notice", "fis_change"] as const;
 
 export type AlertKind = (typeof alertKinds)[number];
 
@@ -160,7 +233,52 @@ export type StockFundamentals = {
   source: string;
   shape_error: string | null;
   market_report: Json;
+  manual_sheet?: Json;
   fetched_at: string;
+};
+
+export type StatementKind = "interim" | "annual";
+export type ScoreTrigger = "manual" | "statement" | "backfill";
+
+export type StockPeriod = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  period: string;
+  months: number;
+  kind: StatementKind;
+  tracing_no: string;
+  revision_of: string | null;
+  figures: Json;
+  source: string;
+  fetched_at: string;
+};
+
+export type StockMonthly = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  period: string;
+  sales_value: Numeric | null;
+  sales_qty: Numeric | null;
+  production_qty: Numeric | null;
+  avg_rate: Numeric | null;
+  tracing_no: string;
+  source: string;
+};
+
+export type StockScore = {
+  id: string;
+  user_id: string;
+  symbol: string;
+  as_of: string;
+  trigger: ScoreTrigger;
+  score: Numeric | null;
+  status: string;
+  model_version: string;
+  factors: Json;
+  observation: Json;
+  forward_pe: Numeric | null;
 };
 
 export type Report = {
@@ -214,23 +332,4 @@ export type PortfolioSnapshot = {
   totalValue: number;
   holdings: HoldingSnapshot[];
   byType: TypeSnapshot[];
-};
-
-export type PortfolioSnapshotRow = {
-  id: string;
-  user_id: string;
-  day: string;
-  total_value: Numeric;
-  captured_at: string;
-};
-
-export type HoldingSnapshotRow = {
-  id: string;
-  user_id: string;
-  asset_id: string;
-  day: string;
-  quantity: Numeric;
-  price: Numeric | null;
-  value: Numeric;
-  captured_at: string;
 };
